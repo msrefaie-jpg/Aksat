@@ -2,8 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0f766e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="أقساط" />
   <title>أقساط — إدارة الالتزامات المالية</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
@@ -17,28 +19,36 @@
         <p class="subtitle">متابعة الالتزامات المالية والأقساط العقارية</p>
       </div>
     </div>
-    <div class="rate-box" id="rateBox" title="سعر الصرف">
-      <label for="rateInput">١ ريال =</label>
-      <input type="number" id="rateInput" step="0.01" min="0.01" inputmode="decimal" />
-      <span>ج.م</span>
+    <div class="header-tools">
+      <button class="bell" id="bellBtn" title="التنبيهات" aria-label="التنبيهات">
+        🔔<span class="bell-count hidden" id="bellCount">0</span>
+      </button>
+      <div class="rate-box" id="rateBox" title="سعر الصرف">
+        <label for="rateInput">١ ريال =</label>
+        <input type="number" id="rateInput" step="0.01" min="0.01" inputmode="decimal" />
+        <span>ج.م</span>
+        <button class="rate-refresh" id="rateRefresh" title="تحديث السعر من الإنترنت">⟳</button>
+      </div>
     </div>
   </header>
 
+  <div class="sync-bar" id="syncBar">
+    <span id="syncStatus">…</span>
+    <button class="link-btn" id="accountBtn">الحساب والمزامنة</button>
+  </div>
+
   <main class="container">
-    <!-- ملخص لوحة التحكم -->
     <section class="summary" id="summary" aria-label="ملخص عام"></section>
 
-    <!-- أشرطة التنقل -->
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="dashboard" role="tab">لوحة التحكم</button>
       <button class="tab" data-view="units" role="tab">الوحدات</button>
-      <button class="tab" data-view="upcoming" role="tab">الأقساط القادمة</button>
+      <button class="tab" data-view="upcoming" role="tab">القادمة</button>
+      <button class="tab" data-view="reports" role="tab">التقارير</button>
     </nav>
 
-    <!-- لوحة التحكم -->
     <section class="view" id="view-dashboard"></section>
 
-    <!-- الوحدات -->
     <section class="view hidden" id="view-units">
       <div class="view-head">
         <h2>الوحدات العقارية</h2>
@@ -47,7 +57,6 @@
       <div id="unitsList" class="units-list"></div>
     </section>
 
-    <!-- الأقساط القادمة -->
     <section class="view hidden" id="view-upcoming">
       <div class="view-head">
         <h2>الأقساط القادمة والمستحقة</h2>
@@ -61,6 +70,8 @@
       </div>
       <div id="upcomingList" class="upcoming-list"></div>
     </section>
+
+    <section class="view hidden" id="view-reports"></section>
   </main>
 
   <!-- نافذة الوحدة -->
@@ -103,13 +114,10 @@
         <h3 id="instModalTitle">إضافة قسط</h3>
         <button class="icon-btn" id="closeInstModal" aria-label="إغلاق">✕</button>
       </div>
-
       <div class="seg" id="instMode">
         <button type="button" class="seg-btn active" data-mode="single">قسط واحد</button>
         <button type="button" class="seg-btn" data-mode="schedule">جدول أقساط</button>
       </div>
-
-      <!-- قسط واحد -->
       <form id="singleForm" class="form">
         <div class="row">
           <label>المبلغ (ج.م) *
@@ -127,8 +135,6 @@
           <button type="submit" class="btn primary">حفظ</button>
         </div>
       </form>
-
-      <!-- جدول أقساط -->
       <form id="scheduleForm" class="form hidden">
         <div class="row">
           <label>قيمة القسط (ج.م) *
@@ -160,11 +166,49 @@
     </div>
   </div>
 
+  <!-- نافذة الحساب والمزامنة -->
+  <div class="modal-overlay hidden" id="accountModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3>الحساب والمزامنة</h3>
+        <button class="icon-btn" id="closeAccountModal" aria-label="إغلاق">✕</button>
+      </div>
+      <div class="form">
+        <p class="hint" id="accountHint">
+          «رمز الحساب» هو مفتاحك السري للمزامنة. أدخل نفس الرمز على كل أجهزتك لتتزامن بياناتك.
+          احتفظ به في مكان آمن — من يعرفه يمكنه رؤية بياناتك.
+        </p>
+        <label>رمز الحساب
+          <input type="text" id="accountCode" autocomplete="off" spellcheck="false" placeholder="رمز طويل يصعب تخمينه" />
+        </label>
+        <div class="modal-actions" style="justify-content:space-between">
+          <button type="button" class="btn ghost small" id="genCodeBtn">توليد رمز عشوائي</button>
+          <button type="button" class="btn primary" id="saveAccountBtn">حفظ ومزامنة</button>
+        </div>
+        <hr class="sep" />
+        <label class="switch-row">
+          <span>تحديث سعر الصرف تلقائياً من الإنترنت</span>
+          <input type="checkbox" id="autoRateToggle" />
+        </label>
+        <label class="switch-row">
+          <span>تنبيهات المتصفح للأقساط المستحقة</span>
+          <input type="checkbox" id="notifToggle" />
+        </label>
+        <hr class="sep" />
+        <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn ghost small" id="exportBtn2">تصدير نسخة احتياطية</button>
+          <button type="button" class="btn ghost small" id="importBtn2">استيراد</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- لوحة التنبيهات -->
+  <div class="notif-panel hidden" id="notifPanel"></div>
+
   <footer class="app-footer">
-    <button class="btn ghost small" id="exportBtn">تصدير البيانات</button>
-    <button class="btn ghost small" id="importBtn">استيراد</button>
-    <input type="file" id="importFile" accept="application/json" hidden />
-    <span class="footer-note">بياناتك محفوظة على جهازك فقط</span>
+    <span class="footer-note" id="footerNote">بياناتك تُحفظ سحابياً ومحلياً</span>
   </footer>
 
   <script src="app.js"></script>

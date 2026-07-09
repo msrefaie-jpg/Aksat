@@ -69,6 +69,21 @@ body {
 .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
 .subtitle { font-size: 12.5px; opacity: .9; }
 
+.header-tools { display: flex; align-items: center; gap: 10px; }
+.bell {
+  position: relative;
+  background: rgba(255,255,255,.16);
+  border: none; color: #fff;
+  width: 40px; height: 40px; border-radius: 12px;
+  font-size: 18px; cursor: pointer;
+}
+.bell-count {
+  position: absolute; top: -4px; inset-inline-start: -4px;
+  background: var(--danger); color: #fff;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 99px; font-size: 11px; font-weight: 800;
+  display: grid; place-items: center;
+}
 .rate-box {
   background: rgba(255,255,255,.16);
   border-radius: 12px;
@@ -77,13 +92,31 @@ body {
   font-size: 13px;
 }
 .rate-box input {
-  width: 64px;
+  width: 60px;
   border: none; border-radius: 8px;
   padding: 5px 8px;
   text-align: center;
   font-size: 14px; font-weight: 700;
   background: #fff; color: var(--ink);
 }
+.rate-refresh {
+  border: none; background: rgba(255,255,255,.22); color: #fff;
+  width: 26px; height: 26px; border-radius: 8px;
+  cursor: pointer; font-size: 15px; line-height: 1;
+}
+.rate-refresh.spin { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* شريط المزامنة */
+.sync-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 7px 16px;
+  background: var(--card); border-bottom: 1px solid var(--line);
+  font-size: 12.5px; color: var(--ink-soft);
+}
+.sync-bar .dot { display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-inline-end: 6px; vertical-align: middle; }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--danger); } .dot.sync { background: var(--brand); }
+.link-btn { background: none; border: none; color: var(--brand); font-weight: 700; font-size: 12.5px; cursor: pointer; font-family: inherit; }
 
 /* ===== Layout ===== */
 .container { max-width: 860px; margin: 0 auto; padding: 16px; }
@@ -315,8 +348,55 @@ body {
 }
 .footer-note { color: var(--ink-soft); margin-inline-start: auto; }
 
+/* مبدّلات ومقاطع في نافذة الحساب */
+.switch-row { display: flex; align-items: center; justify-content: space-between; flex-direction: row !important; font-weight: 600; color: var(--ink); }
+.switch-row input { width: auto !important; }
+.sep { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+
+/* لوحة التنبيهات */
+.notif-panel {
+  position: fixed; top: 66px; inset-inline-start: 12px;
+  width: min(360px, calc(100vw - 24px));
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.2);
+  z-index: 60; max-height: 70vh; overflow-y: auto; padding: 12px;
+}
+.notif-panel h4 { font-size: 14px; margin-bottom: 10px; }
+.notif-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px; border-radius: 12px; margin-bottom: 6px;
+  background: var(--bg);
+}
+.notif-item .ic { font-size: 18px; }
+.notif-item .t { font-weight: 700; font-size: 13.5px; }
+.notif-item .s { font-size: 12px; color: var(--ink-soft); }
+.notif-item.over { background: var(--danger-soft); }
+.notif-item.soon { background: var(--warn-soft); }
+
+/* التقارير والرسوم */
+.report-block {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+.report-block h3 { font-size: 15px; margin-bottom: 4px; }
+.report-block .rsub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 12px; }
+.chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart-svg { display: block; }
+.chart-svg text { fill: var(--ink-soft); font-size: 11px; font-family: inherit; }
+.chart-svg .grid { stroke: var(--line); stroke-width: 1; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12.5px; color: var(--ink-soft); }
+.legend .lk { display: inline-flex; align-items: center; gap: 6px; }
+.legend .sw { width: 12px; height: 12px; border-radius: 4px; }
+.rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rtable th, .rtable td { padding: 9px 8px; text-align: start; border-bottom: 1px solid var(--line); }
+.rtable th { color: var(--ink-soft); font-weight: 600; font-size: 12px; }
+.rtable td.num { font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 480px) {
   .footer-note { display: none; }
   .unit-figures { grid-template-columns: 1fr 1fr; }
   .brand h1 { font-size: 19px; }
+  .subtitle { display: none; }
+  .tabs .tab { font-size: 13px; padding: 9px 4px; }
 }

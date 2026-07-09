@@ -1,0 +1,12 @@
+{
+  "name": "aksat",
+  "version": "1.0.0",
+  "description": "تطبيق أقساط لإدارة الالتزامات المالية العقارية مع مزامنة سحابية عبر Neon",
+  "private": true,
+  "scripts": {
+    "db:init": "node scripts/init-db.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  }
+}
