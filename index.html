@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f766e" />
+  <title>أقساط — إدارة الالتزامات المالية</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">﷼</span>
+      <div>
+        <h1>أقساط</h1>
+        <p class="subtitle">متابعة الالتزامات المالية والأقساط العقارية</p>
+      </div>
+    </div>
+    <div class="rate-box" id="rateBox" title="سعر الصرف">
+      <label for="rateInput">١ ريال =</label>
+      <input type="number" id="rateInput" step="0.01" min="0.01" inputmode="decimal" />
+      <span>ج.م</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ملخص لوحة التحكم -->
+    <section class="summary" id="summary" aria-label="ملخص عام"></section>
+
+    <!-- أشرطة التنقل -->
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="dashboard" role="tab">لوحة التحكم</button>
+      <button class="tab" data-view="units" role="tab">الوحدات</button>
+      <button class="tab" data-view="upcoming" role="tab">الأقساط القادمة</button>
+    </nav>
+
+    <!-- لوحة التحكم -->
+    <section class="view" id="view-dashboard"></section>
+
+    <!-- الوحدات -->
+    <section class="view hidden" id="view-units">
+      <div class="view-head">
+        <h2>الوحدات العقارية</h2>
+        <button class="btn primary" id="addUnitBtn">+ إضافة وحدة</button>
+      </div>
+      <div id="unitsList" class="units-list"></div>
+    </section>
+
+    <!-- الأقساط القادمة -->
+    <section class="view hidden" id="view-upcoming">
+      <div class="view-head">
+        <h2>الأقساط القادمة والمستحقة</h2>
+        <select id="upcomingRange" class="select">
+          <option value="30">خلال ٣٠ يوماً</option>
+          <option value="90" selected>خلال ٩٠ يوماً</option>
+          <option value="180">خلال ١٨٠ يوماً</option>
+          <option value="365">خلال سنة</option>
+          <option value="0">كل الأقساط غير المدفوعة</option>
+        </select>
+      </div>
+      <div id="upcomingList" class="upcoming-list"></div>
+    </section>
+  </main>
+
+  <!-- نافذة الوحدة -->
+  <div class="modal-overlay hidden" id="unitModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 id="unitModalTitle">إضافة وحدة</h3>
+        <button class="icon-btn" id="closeUnitModal" aria-label="إغلاق">✕</button>
+      </div>
+      <form id="unitForm" class="form">
+        <label>اسم الوحدة *
+          <input type="text" name="name" required placeholder="مثال: شقة الرحاب — عمارة ٥" />
+        </label>
+        <label>المشروع / المطوّر
+          <input type="text" name="project" placeholder="مثال: مدينة نصر للإسكان" />
+        </label>
+        <div class="row">
+          <label>إجمالي السعر (ج.م)
+            <input type="number" name="totalPrice" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+          </label>
+          <label>المقدم المدفوع (ج.م)
+            <input type="number" name="downPayment" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+          </label>
+        </div>
+        <label>ملاحظات
+          <textarea name="notes" rows="2" placeholder="رقم العقد، تفاصيل التواصل..."></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" id="cancelUnitBtn">إلغاء</button>
+          <button type="submit" class="btn primary">حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- نافذة القسط -->
+  <div class="modal-overlay hidden" id="installmentModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 id="instModalTitle">إضافة قسط</h3>
+        <button class="icon-btn" id="closeInstModal" aria-label="إغلاق">✕</button>
+      </div>
+
+      <div class="seg" id="instMode">
+        <button type="button" class="seg-btn active" data-mode="single">قسط واحد</button>
+        <button type="button" class="seg-btn" data-mode="schedule">جدول أقساط</button>
+      </div>
+
+      <!-- قسط واحد -->
+      <form id="singleForm" class="form">
+        <div class="row">
+          <label>المبلغ (ج.م) *
+            <input type="number" name="amount" required min="0" step="0.01" inputmode="decimal" />
+          </label>
+          <label>تاريخ الاستحقاق *
+            <input type="date" name="dueDate" required />
+          </label>
+        </div>
+        <label>وصف (اختياري)
+          <input type="text" name="label" placeholder="مثال: قسط ربع سنوي" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost cancel-inst">إلغاء</button>
+          <button type="submit" class="btn primary">حفظ</button>
+        </div>
+      </form>
+
+      <!-- جدول أقساط -->
+      <form id="scheduleForm" class="form hidden">
+        <div class="row">
+          <label>قيمة القسط (ج.م) *
+            <input type="number" name="amount" required min="0" step="0.01" inputmode="decimal" />
+          </label>
+          <label>عدد الأقساط *
+            <input type="number" name="count" required min="1" step="1" value="12" />
+          </label>
+        </div>
+        <div class="row">
+          <label>تاريخ أول قسط *
+            <input type="date" name="startDate" required />
+          </label>
+          <label>التكرار
+            <select name="frequency" class="select">
+              <option value="1">شهري</option>
+              <option value="3">ربع سنوي</option>
+              <option value="6">نصف سنوي</option>
+              <option value="12">سنوي</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint" id="scheduleHint"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost cancel-inst">إلغاء</button>
+          <button type="submit" class="btn primary">إنشاء الجدول</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <button class="btn ghost small" id="exportBtn">تصدير البيانات</button>
+    <button class="btn ghost small" id="importBtn">استيراد</button>
+    <input type="file" id="importFile" accept="application/json" hidden />
+    <span class="footer-note">بياناتك محفوظة على جهازك فقط</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
