@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=3" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -229,15 +229,17 @@
 
         <hr class="sep" />
         <div class="acct-title">مشاركة محفظتي</div>
-        <div class="rsub" style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">ادعُ شخصًا برؤية أو تعديل محفظتك. يجب أن يسجّل بنفس البريد.</div>
+        <div class="rsub" style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">ادعُ شخصًا برؤية أو تعديل محفظتك. <b>لا يُرسَل بريد</b> — يجد المدعوّ محفظتك داخل التطبيق تحت «المحافظ» بعد تسجيله بنفس البريد.</div>
         <div id="membersList" class="pf-list"></div>
         <div class="share-add">
-          <input type="email" id="shareEmail" placeholder="بريد الشخص" autocomplete="off" />
-          <select id="shareRole" class="select">
-            <option value="viewer">مشاهد</option>
-            <option value="editor">محرّر</option>
-          </select>
-          <button type="button" class="btn primary small" id="shareAddBtn">دعوة</button>
+          <input type="email" id="shareEmail" placeholder="بريد الشخص" autocomplete="off" spellcheck="false" />
+          <div class="share-row">
+            <select id="shareRole" class="select">
+              <option value="viewer">مشاهد</option>
+              <option value="editor">محرّر</option>
+            </select>
+            <button type="button" class="btn primary" id="shareAddBtn">دعوة</button>
+          </div>
         </div>
         <div id="shareMsg" class="msg hidden" style="margin-top:8px"></div>
 
@@ -302,6 +304,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

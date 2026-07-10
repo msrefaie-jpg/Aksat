@@ -1185,6 +1185,9 @@ async function onAuthChanged(user) {
   await loadPortfolios();
   activePortfolio = portfolios.find(p => p.self) || null;
   await loadActivePortfolio(true);
+  // تلميح: توجد محافظ مشتركة معك
+  const sharedCount = portfolios.filter(p => !p.self).length;
+  if (sharedCount) setTimeout(() => toast(`لديك ${sharedCount} محفظة مشتركة — افتحها من «الحساب والمزامنة»`), 800);
 }
 
 /* تحميل قائمة المحافظ (ملكي + المشتركة معي) */

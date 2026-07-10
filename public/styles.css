@@ -218,8 +218,10 @@ body {
   border: 1px solid var(--line);
   background: var(--card); color: var(--ink);
   border-radius: 10px; padding: 9px 12px;
-  font-size: 14px; font-family: inherit; cursor: pointer;
+  font-size: 16px; font-family: inherit; cursor: pointer;
 }
+/* منع تكبير iOS التلقائي: كل حقول الإدخال ≥ 16px */
+input, select, textarea, button { font-size: 16px; }
 
 /* ===== Units list ===== */
 .units-list { display: grid; gap: 14px; }
@@ -339,7 +341,7 @@ body {
 .form input, .form textarea, .form .select {
   border: 1px solid var(--line); background: var(--bg);
   border-radius: 10px; padding: 11px 12px;
-  font-size: 15px; font-family: inherit; color: var(--ink);
+  font-size: 16px; font-family: inherit; color: var(--ink);
   width: 100%;
 }
 .form input:focus, .form textarea:focus, .form .select:focus {
@@ -477,9 +479,11 @@ body.authed .login-overlay { display: none; }
 .pf-name { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-role { font-size: 11.5px; color: var(--ink-soft); }
 .pf-cur { font-size: 11.5px; color: var(--brand); font-weight: 700; }
-.share-add { display: flex; gap: 6px; align-items: center; }
-.share-add input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; font-size: 14px; font-family: inherit; color: var(--ink); }
-.share-add .select { padding: 10px 8px; }
+.share-add { display: grid; gap: 8px; }
+.share-add input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 11px 12px; font-size: 16px; font-family: inherit; color: var(--ink); }
+.share-row { display: flex; gap: 8px; }
+.share-row .select { flex: 1; }
+.share-row .btn { flex: 0 0 auto; }
 
 .pf-indicator {
   background: var(--warn-soft); color: var(--warn);
