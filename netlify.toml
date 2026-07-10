@@ -1,6 +1,10 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+  command = ""
+
+[build.environment]
+  NODE_VERSION = "20"
 
 # توجيه مسارات /api/* إلى دوال Netlify
 [[redirects]]
