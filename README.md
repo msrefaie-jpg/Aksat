@@ -24,36 +24,40 @@
 افتح `index.html` في المتصفح مباشرة. يعمل التطبيق ويحفظ البيانات على الجهاز فقط
 (بدون مزامنة سحابية ولا تحديث سعر تلقائي من الخادم).
 
-### ب) النشر الكامل مع مزامنة Neon (موصى به)
+### ب) النشر الكامل مع مزامنة Neon على **Cloudflare Pages** (موصى به)
 
-يحتاج استضافة تدعم backend مثل **Netlify** (الأقساط تُخزَّن في قاعدة Neon السحابية).
+الأقساط تُخزَّن في قاعدة Neon السحابية، والدخول عبر Firebase Auth.
 
 **١. أنشئ قاعدة Neon**
 - من [neon.tech](https://neon.tech) أنشئ مشروعاً، وانسخ **Connection String** (يبدأ بـ `postgres://`).
-- الجداول تُنشأ تلقائياً عند أول استخدام. (اختيارياً: شغّل `db/schema.sql` من محرر Neon، أو `DATABASE_URL=... npm run db:init`).
+- الجداول تُنشأ تلقائياً عند أول استخدام. (اختيارياً: `DATABASE_URL=... npm run db:init`).
 
-**٢. انشر على Netlify**
-- اربط المستودع بـ Netlify (Add new site → Import from Git).
-- إعدادات البناء تُقرأ تلقائياً من `netlify.toml` (Publish = المجلد الجذر، Functions = `netlify/functions`).
+**٢. انشر على Cloudflare Pages**
+- من [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git**.
+- اختر مستودع `Aksat`، الفرع `main`.
+- إعدادات البناء: **Build command** فارغ · **Build output directory** = `/` (الجذر).
+- الدوال تُكتشف تلقائياً من مجلد `functions/`.
 
-**٣. اضبط متغيّر البيئة**
-- في Netlify: **Site settings → Environment variables** أضف:
-  - `DATABASE_URL` = رابط اتصال Neon.
-- أعد النشر (Deploy).
+**٣. اضبط المتغيّرات والتوافق**
+- **Settings → Environment variables** أضف:
+  - `DATABASE_URL` = رابط اتصال Neon (اجعله *Secret*/Encrypted).
+- **Settings → Functions → Compatibility flags** أضف `nodejs_compat` (أو يُقرأ من `wrangler.toml`).
+- أعد النشر (Retry deployment).
 
-**٤. فعّل المزامنة داخل التطبيق**
-- افتح الموقع → اضغط **«الحساب والمزامنة»** → **«توليد رمز عشوائي»** → **«حفظ ومزامنة»**.
-- على أي جهاز آخر، أدخل **نفس الرمز** لتتزامن بياناتك.
+**٤. سجّل الدخول داخل التطبيق**
+- افتح رابط الموقع → أنشئ حساباً أو سجّل الدخول بالبريد وكلمة المرور.
+- بياناتك مربوطة بهويتك وتتزامن على كل أجهزتك.
 
 ## الأمان والخصوصية
-- المزامنة تعتمد على **«رمز الحساب»** السري: بيانات كل رمز معزولة، ومن لا يعرف الرمز لا يصل إليها. استخدم رمزاً طويلاً (زر التوليد ينشئه لك).
-- بدون ضبط `DATABASE_URL` تعمل الدوال في وضع خطأ آمن ولا تُخزّن شيئاً.
+- المصادقة عبر **Firebase** (يُتحقّق من رمز الدخول على الخادم بتوقيع Google — Web Crypto).
+- بيانات كل مستخدم معزولة بمعرّفه (uid). بدون `DATABASE_URL` تعمل الدوال في وضع خطأ آمن.
 - النسخة المحلية تبقى على جهازك؛ استخدم «تصدير» لعمل نسخة احتياطية.
 
 ## البنية التقنية
 - **الواجهة**: HTML/CSS/JavaScript خالص بلا مكتبات خارجية — `index.html` · `styles.css` · `app.js`.
-- **الخادم**: دوال Netlify — `netlify/functions/state.js` (مزامنة الحالة) و`rate.js` (سعر الصرف).
+- **الخادم**: دوال Cloudflare Pages — `functions/api/state.js` (مزامنة) و`rate.js` (سعر الصرف) و`inspect.js` (نقل)، وأدوات مشتركة في `functions/api/_lib.js`.
 - **قاعدة البيانات**: Neon (PostgreSQL) عبر `@neondatabase/serverless` — المخطط في `db/schema.sql`.
+- **المصادقة**: Firebase Auth (بريد/كلمة مرور)، ويُتحقّق من الرمز عبر Web Crypto.
 - **الرسوم البيانية**: SVG مولّدة داخلياً (بلا اعتماديات).
 
 ## ملاحظات

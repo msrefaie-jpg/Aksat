@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS app_state (
 
 -- (اختياري) سجل لأسعار الصرف المجلوبة تلقائياً للتخزين المؤقت
 CREATE TABLE IF NOT EXISTS fx_cache (
-  pair        TEXT PRIMARY KEY,     -- مثال: 'SAR_EGP'
-  rate        NUMERIC NOT NULL,
+  pair        TEXT PRIMARY KEY,     -- مثال: 'USD_BASE'
+  rate        NUMERIC,              -- جنيه لكل ريال
+  usd_rate    NUMERIC,              -- جنيه لكل دولار
   fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
