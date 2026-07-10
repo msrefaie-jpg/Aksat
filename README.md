@@ -24,29 +24,32 @@
 افتح `index.html` في المتصفح مباشرة. يعمل التطبيق ويحفظ البيانات على الجهاز فقط
 (بدون مزامنة سحابية ولا تحديث سعر تلقائي من الخادم).
 
-### ب) النشر الكامل مع مزامنة Neon على **Cloudflare Pages** (موصى به)
+### ب) النشر الكامل مع مزامنة Neon على **Cloudflare Workers** (موصى به)
 
-الأقساط تُخزَّن في قاعدة Neon السحابية، والدخول عبر Firebase Auth.
+التطبيق يعمل كـ **Cloudflare Worker** يخدم الملفات الثابتة من `public/` ويعالج مسارات `/api`.
+الأقساط تُخزَّن في قاعدة Neon، والدخول عبر Firebase Auth.
 
 **١. أنشئ قاعدة Neon**
-- من [neon.tech](https://neon.tech) أنشئ مشروعاً، وانسخ **Connection String** (يبدأ بـ `postgres://`).
-- الجداول تُنشأ تلقائياً عند أول استخدام. (اختيارياً: `DATABASE_URL=... npm run db:init`).
+- من [neon.tech](https://neon.tech) أنشئ مشروعاً، وانسخ **Connection String**.
+- الجداول تُنشأ تلقائياً. (اختيارياً: `DATABASE_URL=... npm run db:init`).
 
-**٢. انشر على Cloudflare Pages**
-- من [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git**.
-- اختر مستودع `Aksat`، الفرع `main`.
-- إعدادات البناء: **Build command** فارغ · **Build output directory** = `/` (الجذر).
-- الدوال تُكتشف تلقائياً من مجلد `functions/`.
+**٢. انشر على Cloudflare**
+- [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Import a repository**.
+- اختر `Aksat`، الفرع `main`.
+- **Build command**: فارغ · **Deploy command**: `npx wrangler deploy` (الافتراضي).
+- الإعداد يُقرأ من `wrangler.toml` (main = `worker.js`، assets = `public/`، `nodejs_compat`).
+- اضغط **Deploy**.
 
-**٣. اضبط المتغيّرات والتوافق**
-- **Settings → Environment variables** أضف:
-  - `DATABASE_URL` = رابط اتصال Neon (اجعله *Secret*/Encrypted).
-- **Settings → Functions → Compatibility flags** أضف `nodejs_compat` (أو يُقرأ من `wrangler.toml`).
-- أعد النشر (Retry deployment).
+**٣. اضبط سرّ قاعدة البيانات**
+- **Settings → Variables and Secrets → Add** → Secret اسمه `DATABASE_URL` بقيمة رابط Neon.
+- (يُطبَّق فوراً بلا حاجة لإعادة نشر).
 
-**٤. سجّل الدخول داخل التطبيق**
-- افتح رابط الموقع → أنشئ حساباً أو سجّل الدخول بالبريد وكلمة المرور.
-- بياناتك مربوطة بهويتك وتتزامن على كل أجهزتك.
+**٤. أضف نطاق الموقع إلى Firebase**
+- رابط الموقع سيكون `aksat.<حسابك>.workers.dev`.
+- Firebase Console → Authentication → Settings → **Authorized domains → Add** → أضف هذا النطاق.
+
+**٥. سجّل الدخول**
+- افتح الرابط → أنشئ حساباً أو سجّل الدخول. بياناتك مربوطة بهويتك وتتزامن.
 
 ## الأمان والخصوصية
 - المصادقة عبر **Firebase** (يُتحقّق من رمز الدخول على الخادم بتوقيع Google — Web Crypto).
@@ -55,7 +58,7 @@
 
 ## البنية التقنية
 - **الواجهة**: HTML/CSS/JavaScript خالص بلا مكتبات خارجية — `index.html` · `styles.css` · `app.js`.
-- **الخادم**: دوال Cloudflare Pages — `functions/api/state.js` (مزامنة) و`rate.js` (سعر الصرف) و`inspect.js` (نقل)، وأدوات مشتركة في `functions/api/_lib.js`.
+- **الخادم**: Cloudflare Worker — `worker.js` (التوجيه) + `lib/api.js` (المعالجات) + `lib/auth.js` (Neon والتحقق من الهوية)، والملفات الثابتة في `public/`.
 - **قاعدة البيانات**: Neon (PostgreSQL) عبر `@neondatabase/serverless` — المخطط في `db/schema.sql`.
 - **المصادقة**: Firebase Auth (بريد/كلمة مرور)، ويُتحقّق من الرمز عبر Web Crypto.
 - **الرسوم البيانية**: SVG مولّدة داخلياً (بلا اعتماديات).

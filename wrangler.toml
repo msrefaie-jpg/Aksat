@@ -1,0 +1,8 @@
+name = "aksat"
+main = "worker.js"
+compatibility_date = "2024-11-06"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
