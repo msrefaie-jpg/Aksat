@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نقل البيانات من التطبيق القديم — أقساط</title>
+  <style>
+    :root{--brand:#0f766e;--brand-dark:#0b5850;--bg:#f4f6f8;--card:#fff;--ink:#1a2b32;--soft:#5b7178;--line:#e2e8ec;--ok:#16a34a;--danger:#dc2626}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,"Segoe UI","Noto Kufi Arabic",Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:20px}
+    .wrap{max-width:520px;margin:0 auto}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(16,42,47,.08);margin-bottom:16px}
+    h1{font-size:20px;margin-bottom:4px}
+    .sub{color:var(--soft);font-size:13.5px;margin-bottom:16px}
+    label{display:block;font-size:13.5px;font-weight:600;color:var(--soft);margin:12px 0 6px}
+    input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:12px;font-size:15px;font-family:inherit}
+    input:focus{outline:none;border-color:var(--brand);background:#fff}
+    button{border:none;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;margin-top:16px}
+    .primary{background:var(--brand);color:#fff}
+    .primary:disabled{opacity:.6}
+    .ghost{background:transparent;color:var(--brand);border:1px solid var(--line)}
+    .msg{padding:12px;border-radius:10px;font-size:13.5px;margin-top:14px;white-space:pre-wrap}
+    .msg.err{background:#fdecec;color:var(--danger)}
+    .msg.ok{background:#e8f6ed;color:var(--ok)}
+    .msg.info{background:#e6f4f2;color:var(--brand-dark)}
+    .steps{font-size:13px;color:var(--soft);margin-top:10px}
+    .steps li{margin:4px 0}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+    th,td{padding:7px;border-bottom:1px solid var(--line);text-align:start}
+    th{color:var(--soft);font-weight:600}
+    td.n{text-align:end;font-weight:700}
+    .hidden{display:none}
+    code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>نقل البيانات من التطبيق القديم</h1>
+      <div class="sub">يسجّل الدخول إلى حسابك في التطبيق القديم (Firebase) ويحوّل بياناتك إلى صيغة «أقساط».</div>
+      <ol class="steps">
+        <li>أدخل بريد وكلمة مرور <strong>أحد المستخدمَين</strong> كما في التطبيق القديم.</li>
+        <li>اضغط «قراءة البيانات» لمعاينتها.</li>
+        <li>حمّل ملف الاستيراد، ثم افتح «أقساط» → «استيراد».</li>
+        <li>كرّر للمستخدم الثاني إن أردت (بكل حساب رمز حساب مختلف في أقساط).</li>
+      </ol>
+
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="email" autocomplete="username" placeholder="you@example.com" />
+      <label>كلمة المرور</label>
+      <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+      <button class="primary" id="loadBtn">قراءة البيانات</button>
+      <div id="msg" class="msg info hidden"></div>
+    </div>
+
+    <div class="card hidden" id="resultCard">
+      <h1>معاينة البيانات</h1>
+      <div class="sub" id="summary"></div>
+      <div id="tableWrap"></div>
+
+      <button class="primary" id="downloadBtn">⬇️ تحميل ملف الاستيراد (JSON)</button>
+
+      <label style="margin-top:20px">حفظ مباشر في «أقساط» (اختياري)</label>
+      <div class="sub" style="margin:0 0 6px">أدخل «رمز حساب» ليُحفظ في سحابة أقساط مباشرةً (نفس الرمز الذي ستستخدمه في التطبيق).</div>
+      <input type="text" id="accountCode" placeholder="رمز الحساب (٤ أحرف فأكثر)" />
+      <button class="ghost" id="saveCloudBtn">☁️ حفظ في سحابة أقساط</button>
+      <div id="msg2" class="msg info hidden"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // إعداد Firebase للتطبيق القديم (قيَم عامة مضمّنة في الواجهة أصلاً)
+    const firebaseConfig = {
+      apiKey: "AIzaSyC6WTj5rqg4qpbsxHcY1eO9yphOS282W0E",
+      authDomain: "estatemanager-eecaa.firebaseapp.com",
+      projectId: "estatemanager-eecaa",
+      storageBucket: "estatemanager-eecaa.firebasestorage.app",
+      messagingSenderId: "459313113006",
+      appId: "1:459313113006:web:4b45bf439d8718b7914a3f",
+    };
+    const APP_ID = "default-app-id"; // قيمة __app_id في النسخة المنشورة
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const $ = (id) => document.getElementById(id);
+    const show = (el, cls, text) => { el.className = 'msg ' + cls; el.textContent = text; el.classList.remove('hidden'); };
+
+    let builtState = null;
+    let emailUsed = '';
+
+    function toDateStr(v) {
+      if (!v) return '';
+      if (typeof v === 'string') return v.slice(0, 10);
+      if (typeof v === 'object' && typeof v.toDate === 'function') {
+        const d = v.toDate();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      if (typeof v === 'number') {
+        const d = new Date(v);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      return String(v).slice(0, 10);
+    }
+    const uid = () => 'x' + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36);
+
+    function buildState(installments, sarRate) {
+      // تجميع الأقساط حسب الوحدة
+      const byUnit = new Map();
+      installments.forEach(it => {
+        const unitName = (it.unit && String(it.unit).trim()) || 'غير محدّد';
+        if (!byUnit.has(unitName)) byUnit.set(unitName, []);
+        byUnit.get(unitName).push({
+          id: uid(),
+          amount: Number(it.amount) || 0,
+          dueDate: toDateStr(it.date),
+          label: it.number ? ('قسط ' + it.number) : '',
+          paid: String(it.status || '').toLowerCase() === 'paid',
+          paidDate: String(it.status || '').toLowerCase() === 'paid' ? toDateStr(it.date) : null,
+        });
+      });
+      const units = [];
+      for (const [name, insts] of byUnit) {
+        insts.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+        units.push({ id: uid(), name, project: '', totalPrice: 0, downPayment: 0, notes: 'مستورد من التطبيق القديم', installments: insts, _open: false });
+      }
+      units.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+      return {
+        updatedAt: new Date().toISOString(),
+        rate: Number(sarRate) > 0 ? Number(sarRate) : 13.3,
+        autoRate: false,
+        rateInfo: null,
+        units,
+      };
+    }
+
+    $('loadBtn').addEventListener('click', async () => {
+      const email = $('email').value.trim();
+      const password = $('password').value;
+      if (!email || !password) { show($('msg'), 'err', 'أدخل البريد وكلمة المرور.'); return; }
+      $('loadBtn').disabled = true;
+      show($('msg'), 'info', 'جارٍ تسجيل الدخول وقراءة البيانات…');
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const u = cred.user;
+        emailUsed = email;
+
+        // قراءة الأقساط
+        const col = collection(db, 'artifacts', APP_ID, 'users', u.uid, 'data_installments');
+        const snap = await getDocs(col);
+        const installments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // قراءة سعر الصرف من الإعدادات
+        let sarRate = 13.3;
+        try {
+          const sref = doc(db, 'artifacts', APP_ID, 'users', u.uid, 'settings', 'main');
+          const sdoc = await getDoc(sref);
+          if (sdoc.exists() && sdoc.data().sarRate) sarRate = Number(sdoc.data().sarRate);
+        } catch (e) { /* الإعدادات اختيارية */ }
+
+        builtState = buildState(installments, sarRate);
+
+        // معاينة
+        const unitCount = builtState.units.length;
+        const instCount = installments.length;
+        const paidCount = builtState.units.reduce((s, un) => s + un.installments.filter(i => i.paid).length, 0);
+        const total = builtState.units.reduce((s, un) => s + un.installments.reduce((x, i) => x + i.amount, 0), 0);
+        $('summary').textContent = `${unitCount} وحدة · ${instCount} قسط (${paidCount} مدفوع) · الإجمالي ${Math.round(total).toLocaleString('ar-EG')} ج.م · سعر الصرف ${builtState.rate}`;
+
+        const rows = builtState.units.map(un => {
+          const rem = un.installments.filter(i => !i.paid).reduce((x, i) => x + i.amount, 0);
+          return `<tr><td>${un.name}</td><td class="n">${un.installments.length}</td><td class="n">${Math.round(rem).toLocaleString('ar-EG')} ج.م</td></tr>`;
+        }).join('');
+        $('tableWrap').innerHTML = `<table><thead><tr><th>الوحدة</th><th style="text-align:end">أقساط</th><th style="text-align:end">المتبقّي</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+        $('resultCard').classList.remove('hidden');
+        if (instCount === 0) show($('msg'), 'info', 'تم الدخول لكن لا توجد أقساط لهذا المستخدم. جرّب المستخدم الآخر.');
+        else show($('msg'), 'ok', `تم قراءة ${instCount} قسط بنجاح. راجع المعاينة بالأسفل.`);
+      } catch (e) {
+        let m = e.message || String(e);
+        if (m.includes('auth/invalid-credential') || m.includes('wrong-password') || m.includes('user-not-found') || m.includes('invalid-login'))
+          m = 'بريد أو كلمة مرور غير صحيحة.';
+        else if (m.includes('permission') || m.includes('insufficient'))
+          m = 'تم الدخول لكن قواعد Firestore منعت القراءة.';
+        show($('msg'), 'err', 'تعذّر: ' + m);
+      } finally {
+        $('loadBtn').disabled = false;
+      }
+    });
+
+    $('downloadBtn').addEventListener('click', () => {
+      if (!builtState) return;
+      const blob = new Blob([JSON.stringify(builtState, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safe = emailUsed.replace(/[^a-z0-9]/gi, '_');
+      a.href = url; a.download = `aksat-import-${safe}.json`; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    $('saveCloudBtn').addEventListener('click', async () => {
+      if (!builtState) return;
+      const code = $('accountCode').value.trim();
+      if (!code || code.length < 4) { show($('msg2'), 'err', 'أدخل رمز حساب (٤ أحرف فأكثر).'); return; }
+      show($('msg2'), 'info', 'جارٍ الحفظ في سحابة أقساط…');
+      try {
+        const res = await fetch('/api/state', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-account-code': code },
+          body: JSON.stringify({ state: builtState }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+        show($('msg2'), 'ok', `تم الحفظ في سحابة أقساط تحت الرمز «${code}». افتح «أقساط» وأدخل نفس الرمز في «الحساب والمزامنة».`);
+      } catch (e) {
+        show($('msg2'), 'err', 'تعذّر الحفظ السحابي: ' + (e.message || e) + '. يمكنك بدلاً من ذلك تحميل الملف واستيراده.');
+      }
+    });
+  </script>
+</body>
+</html>
