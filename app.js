@@ -740,7 +740,39 @@ async function saveAccount() {
   else localStorage.removeItem(ACCOUNT_KEY);
   closeAccountModal();
   await detectCloud();
-  await syncOnLoad();
+
+  if (account && cloudAvailable) {
+    // إدخال رمز الحساب = «حمّل هذا الحساب»: نُفضّل بيانات السحابة إن وُجدت
+    setSync('sync', 'جارٍ المزامنة…');
+    try {
+      const remote = await cloudPull();
+      const remoteState = remote && remote.state;
+      const remoteHasUnits = remoteState && Array.isArray(remoteState.units) && remoteState.units.length > 0;
+      const localHasUnits = state.units.length > 0;
+      if (remoteHasUnits) {
+        let adopt = true;
+        if (localHasUnits) {
+          adopt = confirm('هذا الحساب يحتوي بيانات محفوظة سحابياً.\nموافق = تحميل بيانات الحساب (استبدال ما يظهر حالياً).\nإلغاء = رفع بياناتك الحالية بدلاً منها.');
+        }
+        if (adopt) {
+          state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
+          if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
+          saveLocal();
+          setSync('ok', 'مُزامَن سحابياً');
+        } else {
+          await cloudPush(); // المستخدم اختار رفع بياناته المحلية
+        }
+      } else {
+        await cloudPush(); // السحابة فارغة → نرفع المحلي
+      }
+    } catch (e) {
+      setSync('err', 'تعذّرت المزامنة — محلي فقط');
+    }
+  } else if (!account) {
+    setSync('warn', cloudAvailable ? 'المزامنة غير مفعّلة' : 'محلي فقط');
+  }
+
+  $('#rateInput').value = state.rate;
   renderAll();
   if (state.autoRate) fetchAutoRate(false);
 }
