@@ -359,6 +359,9 @@ input, select, textarea, button { font-size: 16px; }
 .form input:focus, .form textarea:focus, .form .select:focus {
   outline: none; border-color: var(--brand); background: var(--card);
 }
+.form input.invalid, .form textarea.invalid, .form .select.invalid,
+input.invalid, select.invalid { border-color: #dc2626 !important; background: rgba(220,38,38,.06); }
+.field-err { display: block; color: #dc2626; font-size: 12px; font-weight: 600; margin-top: 2px; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
 .hint { font-size: 12.5px; color: var(--ink-soft); background: var(--brand-soft); padding: 10px 12px; border-radius: 10px; }

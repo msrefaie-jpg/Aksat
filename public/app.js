@@ -976,6 +976,7 @@ function openPostpone(unitId, instId) {
   const i = u.installments.find(x => x.id === instId); if (!i) return;
   postponeTarget = { unitId, instId };
   $('#postponeInfo').textContent = `القسط: ${fmtEGP(i.amount)} — الاستحقاق الحالي ${fmtDate(i.dueDate)}`;
+  clearErrs($('#postponeForm'));
   $('#postponeForm').querySelector('[name=newDate]').value = i.dueDate;
   $('#postponeModal').classList.remove('hidden');
 }
@@ -1000,7 +1001,7 @@ function openUnitModal(unit) {
   editingUnitId = unit ? unit.id : null;
   editUnitType = (unit && unit.type) || 'apartment';
   $('#unitModalTitle').textContent = unit ? 'تعديل الوحدة' : 'إضافة وحدة';
-  const f = $('#unitForm'); f.reset();
+  const f = $('#unitForm'); f.reset(); clearErrs(f);
   if (unit) {
     f.name.value = unit.name || ''; f.project.value = unit.project || '';
     f.totalPrice.value = unit.totalPrice || ''; f.downPayment.value = unit.downPayment || '';
@@ -1029,6 +1030,7 @@ function pickUnitType(key) {
 function openInstModal(unitId) {
   addInstUnitId = unitId;
   $('#singleForm').reset(); $('#scheduleForm').reset();
+  clearErrs($('#singleForm')); clearErrs($('#scheduleForm'));
   $('#singleForm').querySelector('[name=dueDate]').value = todayISO();
   $('#scheduleForm').querySelector('[name=startDate]').value = todayISO();
   setInstMode('single'); updateScheduleHint();
@@ -1180,6 +1182,8 @@ async function addMember() {
   const role = $('#shareRole').value;
   const msg = $('#shareMsg');
   if (!email) { msg.className = 'msg err'; msg.textContent = 'أدخل بريد الشخص.'; msg.classList.remove('hidden'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = 'msg err'; msg.textContent = 'صيغة البريد غير صحيحة.'; msg.classList.remove('hidden'); return; }
+  if (currentUser && email.toLowerCase() === (currentUser.email || '').toLowerCase()) { msg.className = 'msg err'; msg.textContent = 'لا يمكنك دعوة نفسك.'; msg.classList.remove('hidden'); return; }
   msg.className = 'msg info'; msg.textContent = 'جارٍ الإرسال…'; msg.classList.remove('hidden');
   try {
     const h = await authHeaders();
@@ -1225,6 +1229,45 @@ function toast(text) {
   t.textContent = text; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ---------- التحقق من المدخلات ورسائل خطأ ودّية ---------- */
+function fieldErr(input, msg) {
+  if (!input) return;
+  input.classList.add('invalid');
+  const host = input.closest('label') || input.parentElement;
+  let e = host.querySelector('.field-err');
+  if (!e) { e = document.createElement('small'); e.className = 'field-err'; host.appendChild(e); }
+  e.textContent = msg;
+}
+function clearErrs(form) {
+  form.querySelectorAll('.invalid').forEach(i => i.classList.remove('invalid'));
+  form.querySelectorAll('.field-err').forEach(e => e.remove());
+}
+// checks: [name, isBad(boolean), msg]. يعرض الأخطاء ويركّز أول حقل غير صالح ويرجع true عند السلامة.
+function runChecks(form, checks) {
+  clearErrs(form);
+  let firstBad = null;
+  for (const [name, bad, msg] of checks) {
+    if (!bad) continue;
+    const inp = form.elements[name];
+    fieldErr(inp, msg);
+    if (!firstBad) firstBad = inp;
+  }
+  if (firstBad) { if (firstBad.focus) firstBad.focus(); toast('يرجى تصحيح الحقول المميّزة'); return false; }
+  return true;
+}
+// يمسح خطأ الحقل بمجرد أن يبدأ المستخدم بالكتابة فيه.
+function clearFieldErrOnInput(form) {
+  form.addEventListener('input', e => {
+    const t = e.target;
+    if (t.classList && t.classList.contains('invalid')) {
+      t.classList.remove('invalid');
+      const host = t.closest('label') || t.parentElement;
+      const er = host && host.querySelector('.field-err');
+      if (er) er.remove();
+    }
+  });
 }
 
 let authMode = 'login'; // 'login' | 'signup'
@@ -1384,15 +1427,24 @@ function bindEvents() {
   $('#unitForm').addEventListener('submit', e => {
     e.preventDefault();
     const f = e.target;
+    const name = f.name.value.trim();
+    const totalRaw = f.totalPrice.value.trim(), downRaw = f.downPayment.value.trim();
+    const total = Number(totalRaw || 0), down = Number(downRaw || 0);
+    if (!runChecks(f, [
+      ['name', !name, 'أدخل اسم الوحدة'],
+      ['totalPrice', totalRaw !== '' && (isNaN(total) || total < 0), 'أدخل قيمة صحيحة (صفر أو أكثر)'],
+      ['downPayment', downRaw !== '' && (isNaN(down) || down < 0), 'أدخل قيمة صحيحة (صفر أو أكثر)'],
+      ['downPayment', total > 0 && down > total, 'المقدم أكبر من إجمالي السعر'],
+    ])) return;
     const data = {
-      name: f.name.value.trim(), project: f.project.value.trim(),
-      totalPrice: Number(f.totalPrice.value || 0), downPayment: Number(f.downPayment.value || 0),
+      name, project: f.project.value.trim(),
+      totalPrice: total, downPayment: down,
       notes: f.notes.value.trim(), type: editUnitType,
     };
-    if (!data.name) return;
     if (editingUnitId) Object.assign(findUnit(editingUnitId), data);
     else state.units.push({ id: uid(), ...data, installments: [], _open: true });
     closeUnitModal(); persist(); renderAll();
+    toast(editingUnitId ? 'تم حفظ التعديلات' : 'تمت إضافة الوحدة');
     if (currentView === 'dashboard') switchView('units');
   });
 
@@ -1401,13 +1453,20 @@ function bindEvents() {
   $('#installmentModal').addEventListener('click', e => { if (e.target.id === 'installmentModal') closeInstModal(); });
   $$('#instMode .seg-btn').forEach(b => b.addEventListener('click', () => setInstMode(b.dataset.mode)));
   $('#scheduleForm').addEventListener('input', updateScheduleHint);
+  ['#unitForm', '#singleForm', '#scheduleForm', '#postponeForm'].forEach(sel => { const el = $(sel); if (el) clearFieldErrOnInput(el); });
 
   $('#singleForm').addEventListener('submit', e => {
     e.preventDefault();
     const u = findUnit(addInstUnitId); if (!u) return;
     const f = e.target;
-    u.installments.push({ id: uid(), amount: Number(f.amount.value || 0), dueDate: f.dueDate.value, label: f.label.value.trim(), paid: false, paidDate: null });
+    const amount = Number(f.amount.value || 0);
+    if (!runChecks(f, [
+      ['amount', !(amount > 0), 'أدخل مبلغ قسط أكبر من صفر'],
+      ['dueDate', !f.dueDate.value, 'أدخل تاريخ الاستحقاق'],
+    ])) return;
+    u.installments.push({ id: uid(), amount, dueDate: f.dueDate.value, label: f.label.value.trim(), paid: false, paidDate: null });
     u._open = true; closeInstModal(); persist(); renderAll();
+    toast('تمت إضافة القسط');
   });
 
   $('#scheduleForm').addEventListener('submit', e => {
@@ -1416,11 +1475,17 @@ function bindEvents() {
     const f = e.target;
     const amount = Number(f.amount.value || 0), count = Number(f.count.value || 0), freq = Number(f.frequency.value || 1);
     const start = f.startDate.value;
-    if (!amount || !count || !start) return;
+    if (!runChecks(f, [
+      ['amount', !(amount > 0), 'أدخل قيمة قسط أكبر من صفر'],
+      ['count', !(count >= 1) || count !== Math.floor(count), 'أدخل عدد أقساط صحيحًا (١ أو أكثر)'],
+      ['count', count > 600, 'عدد الأقساط كبير جدًا (٦٠٠ كحدّ أقصى)'],
+      ['startDate', !start, 'أدخل تاريخ البداية'],
+    ])) return;
     for (let k = 0; k < count; k++) {
       u.installments.push({ id: uid(), amount, dueDate: addMonths(start, k * freq), label: `قسط ${k + 1} من ${count}`, paid: false, paidDate: null });
     }
     u._open = true; closeInstModal(); persist(); renderAll();
+    toast(`تمت إضافة ${count} قسط`);
   });
 
   $('#upcomingRange').addEventListener('change', renderUpcoming);
@@ -1508,7 +1573,9 @@ function bindEvents() {
   $('#postponeModal').addEventListener('click', e => { if (e.target.id === 'postponeModal') closePostpone(); });
   $('#postponeForm').addEventListener('submit', e => {
     e.preventDefault();
-    savePostpone(e.target.querySelector('[name=newDate]').value);
+    const f = e.target;
+    if (!runChecks(f, [['newDate', !f.newDate.value, 'أدخل التاريخ الجديد']])) return;
+    savePostpone(f.newDate.value);
   });
 
   document.addEventListener('keydown', e => {
