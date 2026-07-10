@@ -146,6 +146,7 @@ function withDefaults(obj) {
           i.hist.push({ t: d, k: 'paid', amt: Number(i.amount) || 0 });
         }
       }
+      if (!Array.isArray(i.tags)) i.tags = [];
     });
   });
   return s;
@@ -550,13 +551,70 @@ function installmentRowHtml(u, i) {
     </div>`;
 }
 
+let flt = { q: '', status: 'unpaid', range: 90, unit: '', type: '', tag: '' };
+function allTags() {
+  const set = new Set();
+  state.units.forEach(u => (u.installments || []).forEach(i => (i.tags || []).forEach(t => set.add(t))));
+  return [...set].sort((a, b) => a.localeCompare(b, 'ar'));
+}
+function populateUpcomingFilters() {
+  const uSel = $('#fltUnit');
+  if (uSel) { const cur = uSel.value; uSel.innerHTML = '<option value="">كل الوحدات</option>' + state.units.map(u => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join(''); uSel.value = cur; }
+  const tSel = $('#fltType');
+  if (tSel) { const used = new Set(state.units.map(u => unitType(u).key)); const cur = tSel.value; tSel.innerHTML = '<option value="">كل التصنيفات</option>' + allTypes().filter(t => used.has(t.key)).map(t => `<option value="${t.key}">${t.icon} ${escapeHtml(t.label)}</option>`).join(''); tSel.value = cur; }
+  const gSel = $('#fltTag');
+  if (gSel) { const tags = allTags(); const cur = gSel.value; gSel.innerHTML = '<option value="">كل الوسوم</option>' + tags.map(t => `<option value="${escapeHtml(t)}">#${escapeHtml(t)}</option>`).join(''); gSel.value = tags.includes(cur) ? cur : ''; gSel.classList.toggle('hidden', !tags.length); }
+}
+function readFilters() {
+  flt.q = ($('#fltSearch') ? $('#fltSearch').value : '').trim().toLowerCase();
+  flt.status = ($('#fltStatus') || {}).value || 'unpaid';
+  flt.range = Number(($('#upcomingRange') || {}).value || 0);
+  flt.unit = ($('#fltUnit') || {}).value || '';
+  flt.type = ($('#fltType') || {}).value || '';
+  flt.tag = ($('#fltTag') || {}).value || '';
+}
+function instMatches(i) {
+  const over = !i.paid && daysBetween(i.dueDate) < 0;
+  const postponed = /مؤجّل/.test(i.label || '') || (i.hist || []).some(e => e.k === 'postpone');
+  if (flt.status === 'unpaid' && i.paid) return false;
+  if (flt.status === 'paid' && !i.paid) return false;
+  if (flt.status === 'overdue' && !over) return false;
+  if (flt.status === 'postponed' && !postponed) return false;
+  if (flt.range > 0 && daysBetween(i.dueDate) > flt.range) return false;
+  if (flt.unit && i.unit.id !== flt.unit) return false;
+  if (flt.type && unitType(i.unit).key !== flt.type) return false;
+  if (flt.tag && !(i.tags || []).includes(flt.tag)) return false;
+  if (flt.q) {
+    const hay = [i.unit.name, i.unit.project, i.label, (i.tags || []).join(' ')].join(' ').toLowerCase();
+    if (!hay.includes(flt.q)) return false;
+  }
+  return true;
+}
+function upcomingRowHtml(i) {
+  const d = daysBetween(i.dueDate), over = !i.paid && d < 0;
+  const postponed = /مؤجّل/.test(i.label || '');
+  const tags = (i.tags || []).length ? `<div class="row-tags">${i.tags.map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join('')}</div>` : '';
+  const statusBadge = i.paid ? '<span class="badge ok">مدفوع</span>' : (over ? '<span class="badge over">متأخّر</span>' : `<span class="badge due">${d} يوم</span>`);
+  return `
+    <div class="inst-row ${i.paid ? 'paid' : over ? 'overdue' : ''}">
+      <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
+      <div class="inst-main">
+        <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
+        <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
+        ${tags}
+      </div>
+      ${statusBadge}
+      <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
+      ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>` : ''}
+    </div>`;
+}
 function renderUpcoming() {
-  const range = Number($('#upcomingRange').value);
-  let list = allInstallments().filter(i => !i.paid);
-  if (range > 0) list = list.filter(i => daysBetween(i.dueDate) <= range);
-  list.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  populateUpcomingFilters();
+  readFilters();
+  let list = allInstallments().filter(instMatches);
+  list.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
   const wrap = $('#upcomingList');
-  if (!list.length) { wrap.innerHTML = emptyState('لا توجد أقساط', 'لا أقساط مستحقة ضمن هذه الفترة.', '✅'); return; }
+  if (!list.length) { wrap.innerHTML = emptyState('لا نتائج', 'لا أقساط مطابقة للفلاتر الحالية — جرّب توسيع البحث.', '🔎'); return; }
   const groups = {};
   list.forEach(i => { (groups[monthKey(i.dueDate)] ||= []).push(i); });
 
@@ -564,7 +622,7 @@ function renderUpcoming() {
   const monthsCount = Object.keys(groups).length;
   const summaryCard = `
     <div class="settle-result" style="border-inline-start-color:var(--brand);margin-bottom:14px">
-      <div class="sr-row big"><span>إجمالي الأقساط المعروضة</span><b>${fmtEGP(grand)}</b></div>
+      <div class="sr-row big"><span>إجمالي النتائج</span><b>${fmtEGP(grand)}</b></div>
       <div class="sr-cur big">${fmtSAR(grand)} · ${fmtUSD(grand)}</div>
       <div class="sr-row" style="margin-top:8px"><span>${list.length} قسط · ${monthsCount} شهر</span><span></span></div>
     </div>`;
@@ -574,23 +632,7 @@ function renderUpcoming() {
     return `
       <div class="month-group">
         <h3>${month} — <span class="month-total">${fmtEGP(total)} · ${fmtSAR(total)}</span></h3>
-        <div class="inst-list">
-          ${items.map(i => {
-            const d = daysBetween(i.dueDate), over = d < 0;
-            const postponed = /مؤجّل/.test(i.label || '');
-            return `
-            <div class="inst-row ${over ? 'overdue' : ''}">
-              <button class="inst-check" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="تحديد كمدفوع"></button>
-              <div class="inst-main">
-                <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
-                <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
-              </div>
-              ${over ? `<span class="badge over">متأخّر</span>` : `<span class="badge due">${d} يوم</span>`}
-              <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
-              <button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>
-            </div>`;
-          }).join('')}
-        </div>
+        <div class="inst-list">${items.map(upcomingRowHtml).join('')}</div>
       </div>`;
   }).join('');
 }
@@ -1282,6 +1324,9 @@ function openHistory(unitId, instId) {
   else payRow.classList.add('hidden');
   $('#histNoteRow').classList.toggle('hidden', !editable);
   $('#histNote').value = '';
+  renderHistTags(i);
+  $('#histTagAddRow').classList.toggle('hidden', !editable);
+  $('#histTagInput').value = '';
   renderHistTimeline(i);
   $('#historyModal').classList.remove('hidden');
 }
@@ -1323,6 +1368,28 @@ function histSavePayDate() {
   i.paidDate = d;
   pushHist(i, 'paydate', { to: d });
   renderHistTimeline(i); persist();
+}
+function sanitizeTag(t) { return String(t || '').replace(/[<>"&,#]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24); }
+function renderHistTags(i) {
+  const el = $('#histTags'); const tags = i.tags || [];
+  el.innerHTML = tags.length
+    ? tags.map(t => `<span class="tag on">#${escapeHtml(t)}${canEdit() ? ` <button type="button" class="tag-x" data-act="hist-tag-del" data-tag="${escapeHtml(t)}" aria-label="حذف الوسم">×</button>` : ''}</span>`).join('')
+    : '<span class="rsub">لا وسوم</span>';
+}
+function histAddTag() {
+  if (!canEdit()) return;
+  const i = currentHistInst(); if (!i) return;
+  const t = sanitizeTag($('#histTagInput').value); if (!t) return;
+  if (!Array.isArray(i.tags)) i.tags = [];
+  if (!i.tags.includes(t)) i.tags.push(t);
+  $('#histTagInput').value = '';
+  renderHistTags(i); persist(); renderAll();
+}
+function histRemoveTag(tag) {
+  if (!canEdit()) return;
+  const i = currentHistInst(); if (!i) return;
+  i.tags = (i.tags || []).filter(x => x !== tag);
+  renderHistTags(i); persist(); renderAll();
 }
 
 let editUnitType = 'apartment';
@@ -1830,6 +1897,8 @@ function bindEvents() {
   });
 
   $('#upcomingRange').addEventListener('change', renderUpcoming);
+  $('#fltSearch').addEventListener('input', renderUpcoming);
+  ['#fltStatus', '#fltUnit', '#fltType', '#fltTag'].forEach(s => { const el = $(s); if (el) el.addEventListener('change', renderUpcoming); });
 
   // التنبيهات
   $('#bellBtn').addEventListener('click', toggleNotifPanel);
@@ -1896,6 +1965,7 @@ function bindEvents() {
       case 'del-inst': deleteInstallment(uidAttr, id); break;
       case 'postpone': openPostpone(uidAttr, id); break;
       case 'history': openHistory(uidAttr, id); break;
+      case 'hist-tag-del': histRemoveTag(btn.dataset.tag); break;
       case 'print': printReport(); break;
       case 'export-csv': exportCSV(); break;
       case 'share-report': openReportShare(); break;
@@ -1934,6 +2004,8 @@ function bindEvents() {
   $('#historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
   $('#histAddNote').addEventListener('click', histAddNote);
   $('#histPayDate').addEventListener('change', histSavePayDate);
+  $('#histAddTag').addEventListener('click', histAddTag);
+  $('#histTagInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); histAddTag(); } });
 
   // شاشة الترحيب
   const onNext = $('#onboardNext'), onBack = $('#onboardBack'), onSkip = $('#onboardSkip');

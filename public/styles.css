@@ -347,6 +347,24 @@ input, select, textarea, button { font-size: 16px; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 .badge.postponed { background: var(--brand-soft); color: var(--brand); font-size: 10.5px; }
 
+/* شريط البحث والفلاتر */
+.filter-bar { margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+.flt-search {
+  width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 10px; padding: 11px 12px; font-size: 16px; font-family: inherit;
+}
+.flt-search:focus { outline: none; border-color: var(--brand); }
+.flt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.flt-grid .select { width: 100%; }
+
+/* الوسوم */
+.row-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.tag { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; color: var(--brand); background: var(--brand-soft); padding: 2px 8px; border-radius: 99px; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.tag-chips .tag.on { font-size: 12.5px; padding: 4px 10px; }
+.tag-x { background: none; border: none; color: inherit; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 0 0 2px; opacity: .7; }
+.tag-x:hover { opacity: 1; }
+
 /* الخط الزمني لسجلّ القسط */
 .timeline { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; margin-top: 4px; }
 .tl-item { display: flex; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); }

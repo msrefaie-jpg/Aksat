@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -60,15 +60,30 @@
     </section>
 
     <section class="view hidden" id="view-upcoming">
-      <div class="view-head">
-        <h2>الأقساط القادمة والمستحقة</h2>
-        <select id="upcomingRange" class="select">
-          <option value="30">خلال ٣٠ يوماً</option>
-          <option value="90" selected>خلال ٩٠ يوماً</option>
-          <option value="180">خلال ١٨٠ يوماً</option>
-          <option value="365">خلال سنة</option>
-          <option value="0">كل الأقساط غير المدفوعة</option>
-        </select>
+      <div class="view-head"><h2>الأقساط</h2></div>
+      <div class="filter-bar">
+        <div class="flt-search-wrap">
+          <input type="search" id="fltSearch" class="flt-search" placeholder="🔍 بحث: وحدة، مشروع، وصف، وسم…" autocomplete="off" />
+        </div>
+        <div class="flt-grid">
+          <select id="fltStatus" class="select" aria-label="الحالة">
+            <option value="unpaid">غير مدفوع</option>
+            <option value="all">كل الحالات</option>
+            <option value="paid">مدفوع</option>
+            <option value="overdue">متأخّر</option>
+            <option value="postponed">مؤجّل</option>
+          </select>
+          <select id="upcomingRange" class="select" aria-label="الفترة">
+            <option value="0">كل الفترات</option>
+            <option value="30">خلال ٣٠ يوماً</option>
+            <option value="90" selected>خلال ٩٠ يوماً</option>
+            <option value="180">خلال ١٨٠ يوماً</option>
+            <option value="365">خلال سنة</option>
+          </select>
+          <select id="fltUnit" class="select" aria-label="الوحدة"><option value="">كل الوحدات</option></select>
+          <select id="fltType" class="select" aria-label="التصنيف"><option value="">كل التصنيفات</option></select>
+          <select id="fltTag" class="select" aria-label="الوسم"><option value="">كل الوسوم</option></select>
+        </div>
       </div>
       <div id="upcomingList" class="upcoming-list"></div>
     </section>
@@ -254,6 +269,14 @@
         <label id="payDateRow" class="hidden">تاريخ الدفع الفعلي
           <input type="date" id="histPayDate" />
         </label>
+        <div id="histTagsRow">
+          <label style="margin-bottom:4px">الوسوم</label>
+          <div id="histTags" class="tag-chips"></div>
+          <div class="share-row" id="histTagAddRow">
+            <input type="text" id="histTagInput" placeholder="أضف وسمًا (مثل: عقد، تحويل)…" autocomplete="off" maxlength="24" />
+            <button type="button" class="btn primary" id="histAddTag">إضافة</button>
+          </div>
+        </div>
         <div class="share-row" id="histNoteRow">
           <input type="text" id="histNote" placeholder="أضف ملاحظة (اختياري)" autocomplete="off" />
           <button type="button" class="btn primary" id="histAddNote">إضافة</button>
@@ -455,6 +478,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
