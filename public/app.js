@@ -135,6 +135,7 @@ function withDefaults(obj) {
   s.accounts = s.accounts.map(x => ({ id: x.id || uid(), name: x.name || 'حساب', amount: Number(x.amount) || 0, currency: ['EGP', 'SAR', 'USD'].includes(x.currency) ? x.currency : 'EGP' }));
   delete s.assets;
   if (!Array.isArray(s.customTypes)) s.customTypes = [];
+  if (!Array.isArray(s.reports)) s.reports = [];
   // ترحيل: ضمان وجود سجلّ (hist) لكل قسط + توليد قيد دفع للأقساط المدفوعة سابقاً
   (s.units || []).forEach(u => {
     (u.installments || []).forEach(i => {
@@ -608,9 +609,13 @@ function renderReports() {
   const totalRemaining = state.units.reduce((s, u) => s + unitRemaining(u), 0);
 
   el.innerHTML = `
-    <div class="view-head">
+    <div class="view-head" style="flex-wrap:wrap;gap:8px">
       <h2 style="font-size:16px">التقارير</h2>
-      <button class="btn primary" data-act="print">🖨️ طباعة التقرير</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost small" data-act="print">🖨️ طباعة / PDF</button>
+        <button class="btn ghost small" data-act="export-csv">📊 Excel/CSV</button>
+        <button class="btn primary small" data-act="share-report">🔗 رابط للقراءة فقط</button>
+      </div>
     </div>
     <div class="summary" style="margin-bottom:16px">
       <div class="stat"><div class="label">إجمالي مجدول</div><div class="value">${fmtEGP(totalScheduled)}</div><div class="sub">${fmtSAR(totalScheduled)}</div></div>
@@ -1892,6 +1897,9 @@ function bindEvents() {
       case 'postpone': openPostpone(uidAttr, id); break;
       case 'history': openHistory(uidAttr, id); break;
       case 'print': printReport(); break;
+      case 'export-csv': exportCSV(); break;
+      case 'share-report': openReportShare(); break;
+      case 'report-revoke': revokeReportLink(id); break;
       case 'settle-toggle': { settleSelected.has(id) ? settleSelected.delete(id) : settleSelected.add(id); renderSettle(); break; }
       case 'settle-clear': settleSelected.clear(); renderSettle(); break;
       case 'settle-pay': paySelected(); break;
@@ -1914,6 +1922,12 @@ function bindEvents() {
     if (!runChecks(f, [['newDate', !f.newDate.value, 'أدخل التاريخ الجديد']])) return;
     savePostpone(f.newDate.value);
   });
+
+  // مشاركة رابط التقرير
+  $('#closeReportShare').addEventListener('click', closeReportShare);
+  $('#reportShareModal').addEventListener('click', e => { if (e.target.id === 'reportShareModal') closeReportShare(); });
+  $('#rsCreate').addEventListener('click', createReportLink);
+  $('#rsCopy').addEventListener('click', copyReportLink);
 
   // سجلّ القسط
   $('#closeHistModal').addEventListener('click', closeHistory);
@@ -1951,7 +1965,7 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); $('#notifPanel').classList.add('hidden'); }
+    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); closeReportShare(); $('#notifPanel').classList.add('hidden'); }
   });
 }
 
@@ -1963,6 +1977,100 @@ function exportData() {
   a.href = url; a.download = `aksat-backup-${todayISO()}.json`; a.click();
   URL.revokeObjectURL(url);
 }
+/* ---------- تصدير Excel/CSV ---------- */
+function csvEscape(v) { v = v == null ? '' : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function exportCSV() {
+  if (!state.units.length) { toast('لا توجد بيانات للتصدير'); return; }
+  const rows = [['الوحدة', 'المشروع', 'النوع', 'الوصف', 'تاريخ الاستحقاق', 'المبلغ (EGP)', 'المبلغ (SAR)', 'المبلغ (USD)', 'الحالة', 'تاريخ الدفع']];
+  state.units.forEach(u => {
+    const t = unitType(u);
+    (u.installments || []).slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).forEach(i => {
+      rows.push([
+        u.name, u.project || '', t.label || '', i.label || '', i.dueDate || '',
+        Math.round(i.amount || 0),
+        Math.round((i.amount || 0) / state.rate),
+        Math.round((i.amount || 0) / state.usdRate),
+        i.paid ? 'مدفوع' : 'غير مدفوع', i.paidDate ? i.paidDate.slice(0, 10) : '',
+      ]);
+    });
+  });
+  const csv = '﻿' + rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `aksat-installments-${todayISO()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  toast('تم تصدير ملف Excel/CSV');
+}
+
+/* ---------- رابط تقرير للقراءة فقط ---------- */
+function buildReportSnapshot() {
+  return {
+    v: 1,
+    title: 'تقرير أقساط',
+    by: (currentUser && (currentUser.displayName || currentUser.email)) || '',
+    generatedAt: nowISO(),
+    rate: state.rate, usdRate: state.usdRate,
+    totals: {
+      scheduled: state.units.reduce((s, u) => s + unitScheduledTotal(u), 0),
+      paid: state.units.reduce((s, u) => s + unitPaidTotal(u), 0),
+      remaining: state.units.reduce((s, u) => s + unitRemaining(u), 0),
+    },
+    units: state.units.map(u => ({
+      name: u.name, project: u.project || '', icon: unitType(u).icon, type: unitType(u).label,
+      totalPrice: Number(u.totalPrice) || 0, downPayment: Number(u.downPayment) || 0,
+      remaining: unitRemaining(u),
+      installments: (u.installments || []).slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).map(i => ({
+        amount: Number(i.amount) || 0, dueDate: i.dueDate, label: i.label || '', paid: !!i.paid, paidDate: i.paidDate || null,
+      })),
+    })),
+  };
+}
+function reportLinkUrl(id) { return `${location.origin}/report.html?id=${encodeURIComponent(id)}`; }
+function openReportShare() {
+  if (!state.units.length) { toast('لا توجد بيانات لإنشاء تقرير'); return; }
+  $('#rsCurrent').classList.add('hidden');
+  $('#rsMsg').classList.add('hidden');
+  renderReportLinks();
+  $('#reportShareModal').classList.remove('hidden');
+}
+function closeReportShare() { $('#reportShareModal').classList.add('hidden'); }
+function renderReportLinks() {
+  const list = state.reports || [];
+  const el = $('#rsList');
+  if (!list.length) { el.innerHTML = '<div class="rsub">لا روابط نشطة.</div>'; return; }
+  el.innerHTML = list.slice().reverse().map(r =>
+    `<div class="pf-item"><div class="pf-meta"><div class="pf-sub" style="word-break:break-all">${reportLinkUrl(r.id)}</div><div class="pf-sub">أُنشئ ${fmtDate(r.at)}</div></div><button class="btn ghost small" data-act="report-revoke" data-id="${r.id}">إلغاء</button></div>`
+  ).join('');
+}
+async function createReportLink() {
+  const msg = $('#rsMsg');
+  msg.className = 'msg info'; msg.textContent = 'جارٍ الإنشاء…'; msg.classList.remove('hidden');
+  try {
+    const h = await authHeaders();
+    if (!h) throw new Error('سجّل الدخول أولاً');
+    const res = await fetch(`${API}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ data: buildReportSnapshot() }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'خطأ');
+    state.reports = state.reports || []; state.reports.push({ id: data.id, at: nowISO() }); persist();
+    $('#rsLink').value = reportLinkUrl(data.id);
+    $('#rsCurrent').classList.remove('hidden');
+    msg.className = 'msg ok'; msg.textContent = 'تم إنشاء الرابط — انسخه وشاركه.';
+    renderReportLinks();
+  } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || 'تعذّر الإنشاء.'; }
+}
+async function revokeReportLink(id) {
+  try { const h = await authHeaders(); await fetch(`${API}/report?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: h }); } catch { /* تجاهل */ }
+  state.reports = (state.reports || []).filter(r => r.id !== id); persist(); renderReportLinks();
+  toast('أُلغي الرابط');
+}
+function copyReportLink() {
+  const inp = $('#rsLink'); inp.select();
+  const done = () => toast('نُسخ الرابط');
+  if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(done).catch(() => { try { document.execCommand('copy'); done(); } catch { /* تجاهل */ } });
+  else { try { document.execCommand('copy'); done(); } catch { /* تجاهل */ } }
+}
+
 function importData(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();

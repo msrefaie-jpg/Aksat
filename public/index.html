@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -214,6 +214,31 @@
           <button type="submit" class="btn primary">حفظ التأجيل</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- نافذة مشاركة رابط التقرير -->
+  <div class="modal-overlay hidden" id="reportShareModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rsTitle">
+      <div class="modal-head">
+        <h3 id="rsTitle">رابط تقرير للقراءة فقط</h3>
+        <button class="icon-btn" id="closeReportShare" aria-label="إغلاق">✕</button>
+      </div>
+      <div class="form">
+        <p class="hint">أنشئ رابطًا يعرض تقريرك (وحداتك وأقساطك) <b>للقراءة فقط</b> — يفتحه أي شخص لديه الرابط دون تسجيل دخول ودون صلاحية تعديل. صالح ٩٠ يومًا، ويمكنك إلغاؤه في أي وقت.</p>
+        <button type="button" class="btn primary" id="rsCreate" style="width:100%">إنشاء رابط جديد</button>
+        <div id="rsCurrent" class="hidden">
+          <label>الرابط
+            <div class="share-row">
+              <input type="text" id="rsLink" readonly onclick="this.select()" />
+              <button type="button" class="btn primary" id="rsCopy">نسخ</button>
+            </div>
+          </label>
+        </div>
+        <div id="rsMsg" class="msg hidden"></div>
+        <div class="acct-title" style="margin-top:6px">الروابط النشطة</div>
+        <div id="rsList" class="pf-list"></div>
+      </div>
     </div>
   </div>
 
@@ -430,6 +455,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

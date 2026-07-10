@@ -17,3 +17,12 @@ CREATE TABLE IF NOT EXISTS fx_cache (
   usd_rate    NUMERIC,              -- جنيه لكل دولار
   fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- لقطات تقارير للقراءة فقط تُشارَك برابط عام (تنتهي صلاحيتها بعد ٩٠ يوماً)
+CREATE TABLE IF NOT EXISTS reports (
+  id          TEXT PRIMARY KEY,     -- معرّف عشوائي يُستخدم في الرابط العام
+  owner_uid   TEXT NOT NULL,        -- منشئ التقرير (للإلغاء)
+  data        JSONB NOT NULL,       -- لقطة التقرير المعروضة
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ
+);

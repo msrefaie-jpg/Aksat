@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>تقرير أقساط — للقراءة فقط</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <style>
+    :root {
+      --bg:#f4f7f8; --card:#fff; --ink:#0f172a; --soft:#556376; --line:#e6ebef;
+      --brand:#0f766e; --ok:#16a34a; --danger:#dc2626; --warn:#ca8a04;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0b1220; --card:#111c2e; --ink:#e8eef6; --soft:#8aa0b8; --line:#1e2b40; --brand:#2dd4bf; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:'Cairo',system-ui,sans-serif; line-height:1.6; }
+    .wrap { max-width:900px; margin:0 auto; padding:20px 16px 60px; }
+    .head { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+    .head img { width:48px; height:48px; border-radius:12px; }
+    h1 { font-size:22px; margin:0; }
+    .meta { color:var(--soft); font-size:13px; margin-bottom:18px; }
+    .ro-tag { display:inline-block; background:var(--brand); color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:99px; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:22px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:0 1px 3px rgba(15,42,40,.06); }
+    .card .k { color:var(--soft); font-size:12.5px; margin-bottom:6px; }
+    .card .v { font-size:20px; font-weight:800; }
+    .card .s { color:var(--soft); font-size:12.5px; margin-top:3px; }
+    .unit { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(15,42,40,.06); }
+    .unit h2 { font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:8px; }
+    .unit .u-sub { color:var(--soft); font-size:12.5px; margin-bottom:10px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:start; padding:8px 6px; border-bottom:1px solid var(--line); }
+    th { color:var(--soft); font-weight:700; font-size:12px; }
+    td.num, th.num { text-align:start; white-space:nowrap; }
+    .paid { color:var(--ok); font-weight:700; }
+    .over { color:var(--danger); font-weight:700; }
+    .due { color:var(--warn); }
+    .sar-sym { height:.9em; width:auto; display:inline-block; vertical-align:-.08em; margin:0 1px; }
+    .foot { text-align:center; color:var(--soft); font-size:12px; margin-top:26px; }
+    .foot a { color:var(--brand); }
+    .state-msg { text-align:center; padding:60px 20px; color:var(--soft); }
+    .print-btn { position:fixed; inset-inline-end:16px; bottom:16px; background:var(--brand); color:#fff; border:none; border-radius:99px; padding:12px 18px; font-family:inherit; font-weight:700; font-size:14px; box-shadow:0 6px 18px rgba(0,0,0,.2); cursor:pointer; }
+    @media print { .print-btn { display:none; } body { background:#fff; } .unit, .card { box-shadow:none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <div class="state-msg" id="loading">جارٍ تحميل التقرير…</div>
+  </div>
+  <button class="print-btn" id="printBtn" style="display:none" onclick="window.print()">🖨️ طباعة / PDF</button>
+  <script>
+    const SAR_SVG = '<svg class="sar-sym" viewBox="0 0 1124.14 1256.39" fill="currentColor" aria-label="ريال"><path d="M699.62,1113.02h0c-20.06,44.48-33.32,92.75-38.4,143.37l424.51-90.24c20.06-44.47,33.31-92.75,38.4-143.37l-424.51,90.24Z"/><path d="M1085.73,895.8c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.33v-135.2l292.27-62.11c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.27V66.13c-50.67,28.45-95.67,66.32-132.25,110.99v403.35l-132.25,28.11V0c-50.67,28.44-95.67,66.32-132.25,110.99v525.69l-295.91,62.88c-20.06,44.47-33.33,92.75-38.42,143.37l334.33-71.05v170.26l-358.3,76.14c-20.06,44.47-33.32,92.75-38.4,143.37l375.04-79.7c30.53-6.35,56.77-24.4,73.83-49.24l68.78-101.97v-.02c7.14-10.55,11.3-23.27,11.3-36.97v-149.98l132.25-28.11v270.4l424.53-90.28Z"/></svg>';
+    const NF = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let RATE = 1, USD = 1;
+    const egp = n => NF.format(Math.round(n || 0)) + ' £';
+    const sar = n => NF.format(Math.round((n || 0) / RATE)) + ' ' + SAR_SVG;
+    const usd = n => NF.format(Math.round((n || 0) / USD)) + ' $';
+    function fmtDate(iso) { if (!iso) return '—'; try { return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'medium' }).format(new Date(iso.length === 10 ? iso + 'T00:00:00' : iso)); } catch { return iso; } }
+    function daysTo(iso) { const d = new Date((iso || '').length === 10 ? iso + 'T00:00:00' : iso); return Math.ceil((d - new Date().setHours(0, 0, 0, 0)) / 86400000); }
+
+    function render(d) {
+      RATE = Number(d.rate) || 1; USD = Number(d.usdRate) || 1;
+      const t = d.totals || {};
+      let h = `
+        <div class="head"><img src="icon-192.png" alt="أقساط" /><div><h1>${esc(d.title || 'تقرير أقساط')}</h1></div></div>
+        <div class="meta"><span class="ro-tag">للقراءة فقط</span> · أُنشئ ${fmtDate(d.generatedAt)}${d.by ? ' · بواسطة ' + esc(d.by) : ''}</div>
+        <div class="cards">
+          <div class="card"><div class="k">إجمالي مجدول</div><div class="v">${egp(t.scheduled)}</div><div class="s">${sar(t.scheduled)}</div></div>
+          <div class="card"><div class="k">إجمالي مدفوع</div><div class="v" style="color:var(--ok)">${egp(t.paid)}</div><div class="s">${sar(t.paid)}</div></div>
+          <div class="card"><div class="k">إجمالي متبقٍّ</div><div class="v" style="color:var(--brand)">${egp(t.remaining)}</div><div class="s">${sar(t.remaining)}</div></div>
+        </div>`;
+      (d.units || []).forEach(u => {
+        const insts = u.installments || [];
+        h += `<div class="unit">
+          <h2>${esc(u.icon || '🏠')} ${esc(u.name)}${u.project ? ' — <span style="font-weight:600;color:var(--soft)">' + esc(u.project) + '</span>' : ''}</h2>
+          <div class="u-sub">${esc(u.type || '')} · المتبقّي: ${egp(u.remaining)} (${sar(u.remaining)}) · ${insts.length} قسط</div>
+          <table><thead><tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (£)</th><th class="num">${SAR_SVG}</th><th>الحالة</th></tr></thead><tbody>
+          ${insts.map((i, k) => {
+            const dd = daysTo(i.dueDate);
+            const st = i.paid ? '<span class="paid">مدفوع</span>' : (dd < 0 ? '<span class="over">متأخّر</span>' : (dd <= 30 ? '<span class="due">خلال ' + dd + ' يوم</span>' : 'قادم'));
+            return `<tr><td>${k + 1}</td><td>${esc(i.label || '')}</td><td>${fmtDate(i.dueDate)}</td><td class="num">${egp(i.amount)}</td><td class="num">${sar(i.amount)}</td><td>${st}</td></tr>`;
+          }).join('')}
+          </tbody></table>
+        </div>`;
+      });
+      h += `<div class="foot">صُنع بواسطة تطبيق «أقساط» · <a href="/">افتح التطبيق</a></div>`;
+      document.getElementById('wrap').innerHTML = h;
+      document.getElementById('printBtn').style.display = '';
+    }
+
+    (async () => {
+      const id = new URLSearchParams(location.search).get('id');
+      if (!id) { document.getElementById('loading').textContent = 'رابط غير صالح.'; return; }
+      try {
+        const res = await fetch('/api/report?id=' + encodeURIComponent(id));
+        const j = await res.json();
+        if (!res.ok) { document.getElementById('loading').textContent = j.error || 'تعذّر تحميل التقرير.'; return; }
+        render(j.data || {});
+      } catch (e) {
+        document.getElementById('loading').textContent = 'تعذّر الاتصال بالخادم.';
+      }
+    })();
+  </script>
+</body>
+</html>
