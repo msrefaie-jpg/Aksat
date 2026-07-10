@@ -183,6 +183,16 @@ async function authHeaders() {
   } catch { return null; }
 }
 
+/* بيانات مزامنة محلية لكل محفظة (لا تُرفَع للسحابة):
+   dirty = توجد تعديلات محلية لم تُرفَع · base = آخر طابع زمني سحابي وُوفِق عليه */
+function dirtyKey() { return 'aksat_dirty:' + activeKey(); }
+function baseKey() { return 'aksat_base:' + activeKey(); }
+function markDirty() { try { localStorage.setItem(dirtyKey(), '1'); } catch { /* تجاهل */ } }
+function clearDirty() { try { localStorage.removeItem(dirtyKey()); } catch { /* تجاهل */ } }
+function isDirty() { return localStorage.getItem(dirtyKey()) === '1'; }
+function getBase() { return localStorage.getItem(baseKey()) || ''; }
+function setBase(ts) { try { if (ts) localStorage.setItem(baseKey(), String(ts)); } catch { /* تجاهل */ } }
+
 /* حفظ محلي فوري + دفع مؤجّل للسحابة */
 function persist() {
   touch();
@@ -192,6 +202,8 @@ function persist() {
 function scheduleCloudPush() {
   if (!currentUser || !cloudAvailable || !canEdit()) return;
   pendingSync = true;
+  markDirty();
+  if (!navigator.onLine) { setSync('off', 'دون اتصال — سيُزامَن عند عودة الإنترنت'); return; }
   setSync('sync', 'جارٍ الحفظ…');
   clearTimeout(syncTimer);
   syncTimer = setTimeout(cloudPush, 600);
@@ -199,6 +211,7 @@ function scheduleCloudPush() {
 
 async function cloudPush() {
   if (!currentUser || !cloudAvailable || !canEdit()) return;
+  if (!navigator.onLine) { pendingSync = true; setSync('off', 'دون اتصال — سيُزامَن عند عودة الإنترنت'); return; }
   try {
     const h = await authHeaders();
     if (!h) throw new Error('no-token');
@@ -208,11 +221,15 @@ async function cloudPush() {
       body: JSON.stringify({ state }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+    const data = await res.json().catch(() => ({}));
     pendingSync = false;
+    clearDirty();
+    if (data.updatedAt) setBase(data.updatedAt);
     setSync('ok', 'محفوظ سحابياً');
   } catch (e) {
     pendingSync = true;
-    setSync('warn', 'غير متزامن — سيُعاد المحاولة');
+    if (navigator.onLine) setSync('warn', 'غير متزامن — سيُعاد المحاولة');
+    else setSync('off', 'دون اتصال — سيُزامَن عند عودة الإنترنت');
   }
 }
 
@@ -229,6 +246,7 @@ async function cloudPull() {
 
 /* اكتشاف توفر الخادم السحابي */
 async function detectCloud() {
+  if (!navigator.onLine) { cloudAvailable = false; return false; }
   try {
     const res = await fetch(`${API}/state`, { method: 'OPTIONS' });
     cloudAvailable = res.ok || res.status === 200;
@@ -236,31 +254,79 @@ async function detectCloud() {
   return cloudAvailable;
 }
 
-/* دمج بمبدأ «الأحدث يفوز» على مستوى المستند بأكمله */
+/* مزامنة عند التحميل مع كشف التعارض (لا يُطمَس تعديل محلي غير مرفوع) */
 async function syncOnLoad() {
-  if (!currentUser || !cloudAvailable) {
-    setSync('warn', 'الخادم غير متاح — محلي فقط');
-    return;
-  }
+  if (!navigator.onLine) { setSync('off', 'دون اتصال — محلي فقط'); return; }
+  if (!currentUser || !cloudAvailable) { setSync('warn', 'الخادم غير متاح — محلي فقط'); return; }
   setSync('sync', 'جارٍ المزامنة…');
   try {
     const remote = await cloudPull();
-    const localTs = state.updatedAt || '';
     const remoteState = remote && remote.state;
-    const remoteTs = (remoteState && remoteState.updatedAt) || '';
+    const remoteTs = (remote && remote.updatedAt && String(remote.updatedAt)) || (remoteState && remoteState.updatedAt) || '';
+    const base = getBase();
+    const localDirty = isDirty() || pendingSync;
+    const hasRemote = remoteState && Array.isArray(remoteState.units);
+    const remoteChanged = !!remoteTs && remoteTs !== base;
 
-    if (remoteState && Array.isArray(remoteState.units) && (remoteTs >= localTs || !canEdit())) {
-      state = withDefaults(remoteState);
-      saveLocal();
-      setSync('ok', 'مُزامَن سحابياً');
-    } else if (state.units.length && canEdit()) {
-      await cloudPush();
-    } else {
-      setSync('ok', 'مُزامَن سحابياً');
+    if (!hasRemote) {
+      if (state.units.length && canEdit()) await cloudPush();
+      else setSync('ok', 'مُزامَن سحابياً');
+      return;
     }
+    if (!canEdit()) { // مشاهد فقط → دائماً اعتمد السحابة
+      adoptRemote(remoteState, remoteTs);
+      return;
+    }
+    if (remoteChanged && localDirty) { showConflict(remoteState, remoteTs); return; }
+    if (remoteChanged) { adoptRemote(remoteState, remoteTs); return; }
+    if (localDirty) { await cloudPush(); return; }
+    if (!base && remoteTs) setBase(remoteTs);
+    setSync('ok', 'مُزامَن سحابياً');
   } catch (e) {
-    setSync('err', 'تعذّرت المزامنة — محلي فقط');
+    setSync(navigator.onLine ? 'err' : 'off', navigator.onLine ? 'تعذّرت المزامنة — محلي فقط' : 'دون اتصال — محلي فقط');
   }
+}
+
+function adoptRemote(remoteState, remoteTs) {
+  state = withDefaults(remoteState);
+  saveLocal();
+  clearDirty();
+  setBase(remoteTs);
+  setSync('ok', 'مُزامَن سحابياً');
+}
+
+/* ---------- حلّ تعارض المزامنة ---------- */
+let conflictPending = null;
+function showConflict(remoteState, remoteTs) {
+  conflictPending = { remoteState, remoteTs };
+  const info = $('#conflictInfo');
+  if (info) {
+    const localN = state.units.length, remoteN = (remoteState.units || []).length;
+    info.innerHTML =
+      `<div>📱 نسختك على هذا الجهاز: <b>${localN}</b> وحدة · آخر تعديل ${fmtDateTime(state.updatedAt)}</div>` +
+      `<div style="margin-top:6px">☁️ نسخة السحابة: <b>${remoteN}</b> وحدة · آخر تعديل ${fmtDateTime(remoteTs)}</div>`;
+  }
+  $('#conflictModal').classList.remove('hidden');
+  setSync('warn', 'تعارض في المزامنة — بانتظار اختيارك');
+}
+async function resolveConflict(keepMine) {
+  const c = conflictPending; conflictPending = null;
+  $('#conflictModal').classList.add('hidden');
+  if (!c) return;
+  if (keepMine) {
+    markDirty();
+    await cloudPush();
+  } else {
+    adoptRemote(c.remoteState, c.remoteTs);
+    applyRoleUI();
+    renderAll();
+    updateRateInfoUI();
+  }
+}
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  try { return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)); }
+  catch { return String(iso); }
 }
 
 function setSync(kind, text) {
@@ -268,9 +334,15 @@ function setSync(kind, text) {
   if (el) el.innerHTML = `<span class="dot ${kind}"></span>${text}`;
 }
 
-/* إعادة المحاولة عند عودة الاتصال أو التركيز */
-window.addEventListener('online', () => { if (pendingSync) cloudPush(); });
-window.addEventListener('focus', () => { if (pendingSync) cloudPush(); });
+/* حالة الاتصال + إعادة المحاولة عند عودة الإنترنت أو التركيز */
+function updateOnlineUI() {
+  if (!navigator.onLine) { setSync('off', 'دون اتصال — محلي فقط'); return; }
+  if (pendingSync || isDirty()) cloudPush();
+  else setSync('ok', 'محفوظ سحابياً');
+}
+window.addEventListener('online', async () => { if (!cloudAvailable) await detectCloud(); updateOnlineUI(); });
+window.addEventListener('offline', () => setSync('off', 'دون اتصال — محلي فقط'));
+window.addEventListener('focus', () => { if ((pendingSync || isDirty()) && navigator.onLine) cloudPush(); });
 
 /* ==========================================================================
    الحسابات
@@ -1761,6 +1833,11 @@ function bindEvents() {
   if (onBack) onBack.addEventListener('click', prevOnboard);
   if (onSkip) onSkip.addEventListener('click', () => finishOnboarding(false));
 
+  // تعارض المزامنة
+  const ckm = $('#conflictKeepMine'), ctc = $('#conflictTakeCloud');
+  if (ckm) ckm.addEventListener('click', () => resolveConflict(true));
+  if (ctc) ctc.addEventListener('click', () => resolveConflict(false));
+
   // قفل التطبيق
   const lockT = $('#lockToggle'), bioB = $('#bioBtn'), lockPad = $('#lockPad'), lockBio = $('#lockBioBtn');
   if (lockT) lockT.addEventListener('change', onLockToggle);
@@ -1812,6 +1889,14 @@ function importData(e) {
 /* ==========================================================================
    بيانات تجريبية عند أول استخدام (تظهر فقط إن لم توجد بيانات محلية ولا سحابية)
    ========================================================================== */
+/* تسجيل عامل الخدمة لتمكين العمل دون إنترنت */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* غير حرِج */ });
+  });
+}
+
 /* ---------- الإقلاع ---------- */
 function init() {
   notifEnabled = localStorage.getItem(NOTIF_KEY) === '1';
@@ -1819,6 +1904,8 @@ function init() {
   bindEvents();
   switchView('dashboard');
   renderAll();
+  registerServiceWorker();
+  if (!navigator.onLine) setSync('off', 'دون اتصال — محلي فقط');
   if (lockEnabled()) showLock(); // اقفل فور فتح التطبيق
 
   // تهيئة Firebase للمصادقة

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -216,6 +216,21 @@
     </div>
   </div>
 
+  <!-- نافذة تعارض المزامنة -->
+  <div class="modal-overlay hidden" id="conflictModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3>تعارض في المزامنة</h3>
+      </div>
+      <div class="form">
+        <p class="hint">عُدّلت بيانات هذه المحفظة من جهاز آخر بينما لديك تعديلات على هذا الجهاز لم تُرفَع بعد. اختر النسخة التي تريد اعتمادها:</p>
+        <div id="conflictInfo" style="font-size:13px;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:12px"></div>
+        <button type="button" class="btn primary" id="conflictKeepMine" style="width:100%">📱 احتفظ بنسختي وارفعها للسحابة</button>
+        <button type="button" class="btn ghost" id="conflictTakeCloud" style="width:100%">☁️ اعتمد نسخة السحابة (تجاهل تعديلاتي على هذا الجهاز)</button>
+      </div>
+    </div>
+  </div>
+
   <!-- نافذة الحساب والمزامنة -->
   <div class="modal-overlay hidden" id="accountModal">
     <div class="modal settings-modal" role="dialog" aria-modal="true">
@@ -393,6 +408,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
