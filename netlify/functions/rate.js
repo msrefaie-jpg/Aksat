@@ -49,10 +49,11 @@ async function fetchLive() {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return reply(200, {});
 
-  const hasDb = !!process.env.DATABASE_URL;
+  const DB_URL = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED || '';
+  const hasDb = !!DB_URL;
   let sql = null;
   if (hasDb) {
-    try { sql = neon(process.env.DATABASE_URL); } catch { sql = null; }
+    try { sql = neon(DB_URL); } catch { sql = null; }
   }
 
   // محاولة القراءة من التخزين المؤقت

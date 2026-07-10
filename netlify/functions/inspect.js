@@ -8,6 +8,8 @@
 
 const { neon } = require('@neondatabase/serverless');
 
+const DB_URL = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED || '';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Content-Type': 'application/json; charset=utf-8',
@@ -21,10 +23,10 @@ exports.handler = async (event) => {
   const expected = process.env.MIGRATE_TOKEN || '';
   if (!expected) return reply(403, { error: 'الأداة معطّلة — اضبط MIGRATE_TOKEN لتفعيلها مؤقتاً' });
   if (token !== expected) return reply(401, { error: 'رمز غير صحيح' });
-  if (!process.env.DATABASE_URL) return reply(500, { error: 'DATABASE_URL غير مضبوط' });
+  if (!DB_URL) return reply(500, { error: 'رابط قاعدة البيانات غير مضبوط' });
 
   try {
-    const sql = neon(process.env.DATABASE_URL);
+    const sql = neon(DB_URL);
 
     // معلومات عامة عن القاعدة الحالية
     const info = await sql`SELECT current_database() AS db, current_schema() AS schema, current_user AS usr`;

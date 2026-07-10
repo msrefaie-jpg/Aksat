@@ -8,6 +8,9 @@
 
 const { neon } = require('@neondatabase/serverless');
 
+// يقبل رابط القاعدة من DATABASE_URL أو من متغيّر تكامل Netlify‑Neon
+const DB_URL = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED || '';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, x-account-code',
@@ -34,8 +37,8 @@ async function ensureSchema(sql) {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return reply(200, {});
 
-  if (!process.env.DATABASE_URL) {
-    return reply(500, { error: 'DATABASE_URL غير مضبوط في إعدادات الاستضافة' });
+  if (!DB_URL) {
+    return reply(500, { error: 'رابط قاعدة البيانات غير مضبوط في إعدادات الاستضافة' });
   }
 
   const code = (event.headers['x-account-code'] || event.headers['X-Account-Code'] || '').trim();
@@ -44,7 +47,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const sql = neon(process.env.DATABASE_URL);
+    const sql = neon(DB_URL);
     await ensureSchema(sql);
 
     if (event.httpMethod === 'GET') {
