@@ -984,6 +984,131 @@ function finishOnboarding(openUnit) {
   if (openUnit && canEdit()) openUnitModal(null);
 }
 
+/* ---------- قفل التطبيق (رمز + بصمة/Face ID عبر WebAuthn) ---------- */
+const LOCK = { on: 'aksat_lock', hash: 'aksat_pin_hash', salt: 'aksat_pin_salt', len: 'aksat_pin_len', bio: 'aksat_bio_id' };
+const AUTO_LOCK_MS = 30000; // يُقفل تلقائياً بعد ٣٠ ثانية في الخلفية
+let pinBuffer = '';
+let hiddenAt = 0;
+
+function lockEnabled() { return localStorage.getItem(LOCK.on) === '1'; }
+function bioRegistered() { return !!localStorage.getItem(LOCK.bio); }
+async function bioSupported() {
+  try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); }
+  catch { return false; }
+}
+function randBytes(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
+function b64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+async function hashPin(pin, saltB64) {
+  const salt = unb64(saltB64), data = new TextEncoder().encode(pin);
+  const buf = new Uint8Array([...salt, ...data]);
+  return b64(await crypto.subtle.digest('SHA-256', buf));
+}
+async function setupLock(pin) {
+  const saltB64 = b64(randBytes(16));
+  localStorage.setItem(LOCK.salt, saltB64);
+  localStorage.setItem(LOCK.hash, await hashPin(pin, saltB64));
+  localStorage.setItem(LOCK.len, String(pin.length));
+  localStorage.setItem(LOCK.on, '1');
+}
+async function verifyPin(pin) {
+  const saltB64 = localStorage.getItem(LOCK.salt); if (!saltB64) return false;
+  return (await hashPin(pin, saltB64)) === localStorage.getItem(LOCK.hash);
+}
+function clearLock() { Object.values(LOCK).forEach(k => localStorage.removeItem(k)); }
+
+async function registerBiometric() {
+  if (!navigator.credentials || !currentUser) return false;
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: randBytes(32),
+    rp: { name: 'أقساط', id: location.hostname },
+    user: { id: new TextEncoder().encode(currentUser.uid || 'aksat'), name: currentUser.email || 'user', displayName: currentUser.displayName || currentUser.email || 'مستخدم' },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+    timeout: 60000, attestation: 'none',
+  } });
+  if (!cred) return false;
+  localStorage.setItem(LOCK.bio, b64(cred.rawId));
+  return true;
+}
+async function verifyBiometric() {
+  const id = localStorage.getItem(LOCK.bio); if (!id || !navigator.credentials) return false;
+  try {
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: randBytes(32), timeout: 60000, userVerification: 'required',
+      allowCredentials: [{ type: 'public-key', id: unb64(id) }],
+    } });
+    return !!a;
+  } catch { return false; }
+}
+
+function pinLen() { return Number(localStorage.getItem(LOCK.len) || 4); }
+function renderPinDots() {
+  const el = $('#lockDots'); if (!el) return;
+  el.innerHTML = Array.from({ length: pinLen() }, (_, i) => `<span class="pdot ${i < pinBuffer.length ? 'on' : ''}"></span>`).join('');
+}
+function showLock() {
+  if (!lockEnabled()) return;
+  pinBuffer = ''; renderPinDots();
+  $('#lockBioBtn').classList.toggle('hidden', !bioRegistered());
+  $('#lockOverlay').classList.remove('hidden');
+  document.body.classList.add('locked');
+  if (bioRegistered()) setTimeout(tryBioUnlock, 250);
+}
+function hideLock() { $('#lockOverlay').classList.add('hidden'); document.body.classList.remove('locked'); pinBuffer = ''; }
+async function pinPress(d) {
+  if (d === 'del') { pinBuffer = pinBuffer.slice(0, -1); renderPinDots(); return; }
+  if (pinBuffer.length >= pinLen()) return;
+  pinBuffer += d; renderPinDots();
+  if (pinBuffer.length === pinLen()) {
+    if (await verifyPin(pinBuffer)) { hideLock(); }
+    else {
+      const inner = $('.lock-inner'); if (inner) { inner.classList.add('shake'); setTimeout(() => inner.classList.remove('shake'), 450); }
+      pinBuffer = ''; setTimeout(renderPinDots, 300);
+    }
+  }
+}
+async function tryBioUnlock() { if (await verifyBiometric()) hideLock(); }
+
+async function updateLockUI() {
+  const t = $('#lockToggle'); if (t) t.checked = lockEnabled();
+  const row = $('#bioRow'); if (!row) return;
+  if (lockEnabled() && await bioSupported()) {
+    row.classList.remove('hidden');
+    $('#bioBtn').textContent = bioRegistered() ? 'إلغاء فتح القفل بالبصمة' : 'تفعيل فتح القفل بالبصمة';
+  } else row.classList.add('hidden');
+}
+async function onLockToggle(e) {
+  const on = e.target.checked;
+  if (on) {
+    const pin = prompt('اختر رمزًا من ٤ إلى ٦ أرقام لقفل التطبيق:');
+    if (pin === null) { e.target.checked = false; return; }
+    if (!/^\d{4,6}$/.test(pin)) { e.target.checked = false; toast('الرمز يجب أن يكون من ٤ إلى ٦ أرقام'); return; }
+    const c = prompt('أعد إدخال الرمز للتأكيد:');
+    if (c !== pin) { e.target.checked = false; toast('الرمزان غير متطابقين'); return; }
+    await setupLock(pin);
+    toast('تم تفعيل قفل التطبيق');
+    if (await bioSupported() && confirm('تفعيل فتح القفل بالبصمة/Face ID على هذا الجهاز؟')) {
+      try { toast((await registerBiometric()) ? 'تم تفعيل البصمة' : 'تعذّر تفعيل البصمة'); }
+      catch { toast('تعذّر تفعيل البصمة'); }
+    }
+  } else {
+    const pin = prompt('أدخل الرمز الحالي لإيقاف القفل:');
+    if (pin === null) { e.target.checked = true; return; }
+    if (!await verifyPin(pin)) { e.target.checked = true; toast('رمز غير صحيح'); return; }
+    clearLock(); toast('تم إيقاف قفل التطبيق');
+  }
+  updateLockUI();
+}
+async function onBioBtn() {
+  if (bioRegistered()) { localStorage.removeItem(LOCK.bio); toast('أُلغيت البصمة'); }
+  else {
+    try { toast((await registerBiometric()) ? 'تم تفعيل البصمة' : 'تعذّر تفعيل البصمة'); }
+    catch { toast('تعذّر تفعيل البصمة'); }
+  }
+  updateLockUI();
+}
+
 function renderAll() {
   renderSummary();
   renderDashboard();
@@ -1140,6 +1265,7 @@ function openAccountModal() {
   $('#autoRateToggle').checked = !!state.autoRate;
   $('#notifToggle').checked = notifEnabled;
   $('#darkToggle').checked = document.body.classList.contains('dark');
+  updateLockUI();
   renderPortfolioList();
   loadMembers();
   $('#accountModal').classList.remove('hidden');
@@ -1635,6 +1761,24 @@ function bindEvents() {
   if (onBack) onBack.addEventListener('click', prevOnboard);
   if (onSkip) onSkip.addEventListener('click', () => finishOnboarding(false));
 
+  // قفل التطبيق
+  const lockT = $('#lockToggle'), bioB = $('#bioBtn'), lockPad = $('#lockPad'), lockBio = $('#lockBioBtn');
+  if (lockT) lockT.addEventListener('change', onLockToggle);
+  if (bioB) bioB.addEventListener('click', onBioBtn);
+  if (lockPad) lockPad.addEventListener('click', e => { const b = e.target.closest('.pad'); if (b) pinPress(b.dataset.key); });
+  if (lockBio) lockBio.addEventListener('click', tryBioUnlock);
+  document.addEventListener('keydown', e => {
+    if ($('#lockOverlay') && !$('#lockOverlay').classList.contains('hidden')) {
+      if (/^[0-9]$/.test(e.key)) pinPress(e.key);
+      else if (e.key === 'Backspace') pinPress('del');
+    }
+  });
+  // قفل تلقائي عند الرجوع من الخلفية
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); }
+    else if (lockEnabled() && hiddenAt && Date.now() - hiddenAt > AUTO_LOCK_MS) { showLock(); }
+  });
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); $('#notifPanel').classList.add('hidden'); }
   });
@@ -1675,6 +1819,7 @@ function init() {
   bindEvents();
   switchView('dashboard');
   renderAll();
+  if (lockEnabled()) showLock(); // اقفل فور فتح التطبيق
 
   // تهيئة Firebase للمصادقة
   if (typeof firebase === 'undefined' || !firebase.auth) {

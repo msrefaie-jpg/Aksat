@@ -488,6 +488,37 @@ input.invalid, select.invalid { border-color: #dc2626 !important; background: rg
 .onboard-dots .odot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: .2s; }
 .onboard-dots .odot.on { background: var(--brand); width: 22px; border-radius: 4px; }
 .onboard-actions { display: flex; gap: 10px; }
+
+/* شاشة القفل */
+.lock-overlay {
+  position: fixed; inset: 0; z-index: 260;
+  background: linear-gradient(160deg, #0f766e 0%, #0b5850 60%, #083f3a 100%);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.lock-overlay.hidden { display: none; }
+.lock-inner { width: 100%; max-width: 300px; text-align: center; color: #fff; }
+.lock-inner.shake { animation: lockShake .45s; }
+@keyframes lockShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
+.lock-logo { width: 68px; height: 68px; border-radius: 18px; padding: 6px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); }
+.lock-title { font-size: 20px; font-weight: 800; margin-top: 16px; }
+.lock-sub { font-size: 13.5px; opacity: .8; margin-top: 4px; }
+.lock-dots { display: flex; gap: 14px; justify-content: center; margin: 26px 0; }
+.lock-dots .pdot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); transition: .15s; }
+.lock-dots .pdot.on { background: #fff; border-color: #fff; }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 260px; margin: 0 auto; }
+.lock-pad .pad {
+  height: 62px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.08); color: #fff; font-size: 24px; font-weight: 600; cursor: pointer;
+  transition: background .12s, transform .08s;
+}
+.lock-pad .pad:active { background: rgba(255,255,255,.22); transform: scale(.94); }
+.lock-pad .pad-del { font-size: 20px; }
+.lock-bio {
+  margin-top: 24px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
+  color: #fff; border-radius: 12px; padding: 12px 18px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.lock-bio.hidden { display: none; }
+body.locked { overflow: hidden; }
 body.authed .login-overlay { display: none; }
 .login-head { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 40px; }
 .login-logo {

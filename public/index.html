@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -275,6 +275,13 @@
           <span>الوضع الداكن</span>
           <input type="checkbox" id="darkToggle" />
         </label>
+        <label class="switch-row">
+          <span>قفل التطبيق (رمز / بصمة)</span>
+          <input type="checkbox" id="lockToggle" />
+        </label>
+        <div class="switch-row hidden" id="bioRow" style="justify-content:flex-start">
+          <button type="button" class="btn ghost small" id="bioBtn">تفعيل فتح القفل بالبصمة</button>
+        </div>
 
         <hr class="sep" />
         <div class="acct-title">البيانات</div>
@@ -358,9 +365,34 @@
     </div>
   </div>
 
+  <!-- شاشة القفل -->
+  <div class="lock-overlay hidden" id="lockOverlay">
+    <div class="lock-inner">
+      <img src="icon-192.png" alt="أقساط" class="lock-logo" />
+      <div class="lock-title">التطبيق مقفل</div>
+      <div class="lock-sub">أدخل الرمز لفتح التطبيق</div>
+      <div class="lock-dots" id="lockDots"></div>
+      <div class="lock-pad" id="lockPad">
+        <button type="button" class="pad" data-key="1">1</button>
+        <button type="button" class="pad" data-key="2">2</button>
+        <button type="button" class="pad" data-key="3">3</button>
+        <button type="button" class="pad" data-key="4">4</button>
+        <button type="button" class="pad" data-key="5">5</button>
+        <button type="button" class="pad" data-key="6">6</button>
+        <button type="button" class="pad" data-key="7">7</button>
+        <button type="button" class="pad" data-key="8">8</button>
+        <button type="button" class="pad" data-key="9">9</button>
+        <span></span>
+        <button type="button" class="pad" data-key="0">0</button>
+        <button type="button" class="pad pad-del" data-key="del">⌫</button>
+      </div>
+      <button type="button" class="lock-bio hidden" id="lockBioBtn">👆 فتح بالبصمة / Face ID</button>
+    </div>
+  </div>
+
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
