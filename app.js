@@ -777,8 +777,8 @@ function maybeShowBrowserNotif() {
    سعر الصرف التلقائي
    ========================================================================== */
 async function fetchAutoRate(manual) {
-  const btn = $('#rateRefresh');
-  if (btn) btn.classList.add('spin');
+  const fx = $('#fxLine');
+  if (fx) fx.classList.add('loading');
   try {
     // جلب أسعار الدولار كأساس نشتقّ منه سعري الريال والدولار مقابل الجنيه
     let usdEgp = null, usdSar = null, source = '';
@@ -799,36 +799,50 @@ async function fetchAutoRate(manual) {
     }
     if (usdEgp > 0 || source) {
       state.rateInfo = { source, fetchedAt: nowISO() };
-      if ($('#rateInput')) $('#rateInput').value = state.rate;
       persist();
       renderAll();
-      updateRateInfoUI();
-      if (manual) flashFooter(`تم التحديث: ١ ريال = ${state.rate} ج.م · ١ دولار = ${state.usdRate} ج.م`);
+      updateFxLine();
+      if (manual) setSync('ok', `تم تحديث الأسعار`);
     } else if (manual) {
       alert('تعذّر جلب سعر الصرف حالياً.');
     }
   } catch (e) {
     if (manual) alert('تعذّر جلب سعر الصرف: تحقّق من الاتصال.');
   } finally {
-    if (btn) btn.classList.remove('spin');
+    if (fx) fx.classList.remove('loading');
   }
 }
 
-function updateRateInfoUI() {
-  const note = $('#footerNote');
-  if (state.rateInfo && state.rateInfo.fetchedAt) {
-    const t = new Date(state.rateInfo.fetchedAt);
-    const when = new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(t);
-    note.textContent = `آخر تحديث للسعر: ${when} (${state.rateInfo.source || 'تلقائي'})`;
-  }
+function updateFxLine() {
+  if ($('#fxUsd')) $('#fxUsd').textContent = state.usdRate;
+  if ($('#fxSar')) $('#fxSar').textContent = state.rate;
+  if ($('#rateInput')) $('#rateInput').value = state.rate;
+}
+function updateRateInfoUI() { updateFxLine(); }
+
+/* ---------- الوضع الداكن ---------- */
+function applyDark(on) {
+  document.body.classList.toggle('dark', on);
+  const b = $('#darkBtn');
+  if (b) b.textContent = on ? '☀️' : '🌙';
+  localStorage.setItem('aksat.dark', on ? '1' : '0');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#0b1220' : '#0f766e');
+}
+function toggleDark() { applyDark(!document.body.classList.contains('dark')); }
+function initDark() {
+  const saved = localStorage.getItem('aksat.dark');
+  const on = saved === null ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) : saved === '1';
+  applyDark(!!on);
 }
 
-function flashFooter(msg) {
-  const note = $('#footerNote');
-  const prev = note.textContent;
-  note.textContent = msg;
-  note.style.color = 'var(--ok)';
-  setTimeout(() => { note.style.color = ''; updateRateInfoUI(); if (note.textContent === msg) note.textContent = prev; }, 3000);
+/* ---------- تحية المستخدم ---------- */
+function updateGreeting() {
+  const el = $('#greeting');
+  if (!el) return;
+  if (currentView !== 'dashboard' || !state.units.length) { el.innerHTML = ''; return; }
+  let name = '';
+  if (currentUser) name = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : '');
+  el.innerHTML = `<h2>مرحبًا ${name ? escapeHtml(name) : 'بك'} 👋</h2><p>هذه نظرة سريعة على التزاماتك اليوم</p>`;
 }
 
 /* ==========================================================================
@@ -845,6 +859,8 @@ function renderAll() {
   renderUpcoming();
   if (currentView === 'reports') renderReports();
   if (currentView === 'settle') renderSettle();
+  updateGreeting();
+  updateFxLine();
   refreshBell();
   saveLocal();
 }
@@ -864,6 +880,8 @@ function switchView(view) {
   $('#view-' + view).classList.remove('hidden');
   if (view === 'reports') renderReports();
   if (view === 'settle') renderSettle();
+  updateGreeting();
+  window.scrollTo(0, 0);
 }
 
 /* ---------- تأجيل القسط ---------- */
@@ -1020,13 +1038,8 @@ async function onAuthChanged(user) {
    ربط الأحداث
    ========================================================================== */
 function bindEvents() {
-  const rateInput = $('#rateInput');
-  rateInput.value = state.rate;
-  rateInput.addEventListener('input', () => {
-    const v = Number(rateInput.value);
-    if (v > 0) { state.rate = v; state.rateInfo = null; persist(); renderAll(); }
-  });
-  $('#rateRefresh').addEventListener('click', () => fetchAutoRate(true));
+  $('#fxLine').addEventListener('click', () => fetchAutoRate(true));
+  $('#darkBtn').addEventListener('click', toggleDark);
 
   $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
 
@@ -1187,6 +1200,7 @@ function importData(e) {
 /* ---------- الإقلاع ---------- */
 function init() {
   notifEnabled = localStorage.getItem(NOTIF_KEY) === '1';
+  initDark();
   bindEvents();
   switchView('dashboard');
   renderAll();
