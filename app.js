@@ -982,29 +982,78 @@ function openAccountModal() {
 }
 function closeAccountModal() { $('#accountModal').classList.add('hidden'); }
 
-async function doLogin(email, password) {
+let authMode = 'login'; // 'login' | 'signup'
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === 'signup';
+  $('#nameField').classList.toggle('hidden', !signup);
+  $('#forgotRow').classList.toggle('hidden', signup);
+  $('#loginBtn').textContent = signup ? 'إنشاء حساب' : 'تسجيل الدخول';
+  $('#loginPassword').setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
+  $('#authToggleText').textContent = signup ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟';
+  $('#authToggleBtn').textContent = signup ? 'تسجيل الدخول' : 'أنشئ حسابًا';
+  $('#loginMsg').classList.add('hidden');
+}
+
+function authErrorMsg(e) {
+  const m = (e && (e.code || e.message)) || String(e);
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/i.test(m)) return 'بريد أو كلمة مرور غير صحيحة.';
+  if (/email-already-in-use/i.test(m)) return 'هذا البريد مسجّل بالفعل — سجّل الدخول أو استرجع كلمة المرور.';
+  if (/weak-password/i.test(m)) return 'كلمة المرور ضعيفة (٦ أحرف على الأقل).';
+  if (/invalid-email/i.test(m)) return 'صيغة البريد غير صحيحة.';
+  if (/too-many-requests/i.test(m)) return 'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة.';
+  if (/network/i.test(m)) return 'تعذّر الاتصال بالإنترنت.';
+  if (/operation-not-allowed/i.test(m)) return 'إنشاء الحسابات غير مفعّل في الإعدادات.';
+  return 'حدث خطأ: ' + m;
+}
+
+function loginMsg(kind, text) {
   const msg = $('#loginMsg');
-  const btn = $('#loginBtn');
-  btn.disabled = true;
-  msg.className = 'msg info'; msg.textContent = 'جارٍ تسجيل الدخول…'; msg.classList.remove('hidden');
+  msg.className = 'msg ' + kind; msg.textContent = text; msg.classList.remove('hidden');
+}
+
+async function submitAuth() {
+  const name = $('#loginName').value.trim();
+  const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
+  if (!email || !password) { loginMsg('err', 'أدخل البريد وكلمة المرور.'); return; }
+  if (authMode === 'signup' && password.length < 6) { loginMsg('err', 'كلمة المرور ٦ أحرف على الأقل.'); return; }
+  const btn = $('#loginBtn'); btn.disabled = true;
+  loginMsg('info', authMode === 'signup' ? 'جارٍ إنشاء الحساب…' : 'جارٍ تسجيل الدخول…');
   try {
-    await fbAuth.signInWithEmailAndPassword(email, password);
-    // تُكمل onAuthStateChanged بقية العمل
-    msg.classList.add('hidden');
+    if (authMode === 'signup') {
+      const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+      if (name && cred.user) { try { await cred.user.updateProfile({ displayName: name }); } catch { /* تجاهل */ } }
+      try { await cred.user.sendEmailVerification(); } catch { /* اختياري */ }
+      // onAuthStateChanged يكمل الدخول
+    } else {
+      await fbAuth.signInWithEmailAndPassword(email, password);
+    }
+    $('#loginMsg').classList.add('hidden');
   } catch (e) {
-    let m = e.message || String(e);
-    if (/invalid-credential|wrong-password|user-not-found|invalid-login/i.test(m)) m = 'بريد أو كلمة مرور غير صحيحة.';
-    else if (/too-many-requests/i.test(m)) m = 'محاولات كثيرة — انتظر قليلاً.';
-    else if (/network/i.test(m)) m = 'تعذّر الاتصال بالإنترنت.';
-    msg.className = 'msg err'; msg.textContent = m; msg.classList.remove('hidden');
+    loginMsg('err', authErrorMsg(e));
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function doReset() {
+  const email = $('#loginEmail').value.trim();
+  if (!email) { loginMsg('err', 'أدخل بريدك أولاً في خانة البريد ثم اضغط «نسيت كلمة المرور».'); return; }
+  loginMsg('info', 'جارٍ إرسال رابط الاسترجاع…');
+  try {
+    await fbAuth.sendPasswordResetEmail(email);
+    loginMsg('ok', `أُرسل رابط استرجاع كلمة المرور إلى ${email}. تفقّد بريدك (وصندوق الرسائل غير الهامة).`);
+  } catch (e) {
+    loginMsg('err', authErrorMsg(e));
   }
 }
 
 async function doLogout() {
   try { await fbAuth.signOut(); } catch (e) { /* تجاهل */ }
   closeAccountModal();
+  setAuthMode('login');
 }
 
 /* عند تغيّر حالة الدخول */
@@ -1104,16 +1153,15 @@ function bindEvents() {
   // تسجيل الدخول والخروج
   $('#loginForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const email = $('#loginEmail').value.trim();
-    const password = $('#loginPassword').value;
-    if (!email || !password) return;
-    await doLogin(email, password);
+    await submitAuth();
     // اطلب إذن الإشعارات بعد الدخول (استجابةً لضغطة المستخدم)
     if (!localStorage.getItem(NOTIF_KEY)) {
       const ok = await enableBrowserNotifications(true);
       notifEnabled = ok; localStorage.setItem(NOTIF_KEY, ok ? '1' : '0');
     }
   });
+  $('#forgotLink').addEventListener('click', doReset);
+  $('#authToggleBtn').addEventListener('click', () => setAuthMode(authMode === 'login' ? 'signup' : 'login'));
   $('#logoutBtn').addEventListener('click', doLogout);
 
   // الحساب

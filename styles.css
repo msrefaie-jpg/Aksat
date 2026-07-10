@@ -439,6 +439,9 @@ body.authed .login-overlay { display: none; }
   background: linear-gradient(135deg, #0f766e, #0b5850);
 }
 .login-note { text-align: center; color: rgba(255,255,255,.72); font-size: 13px; margin-top: 20px; }
+.link-inline { color: #0f766e; font-weight: 700; cursor: pointer; font-size: 12.5px; }
+.link-inline.light { color: #fff; }
+.login-card .link-inline { color: #0f766e; }
 .msg { padding: 11px; border-radius: 10px; font-size: 13px; }
 .msg.err { background: var(--danger-soft); color: var(--danger); }
 .msg.ok { background: var(--ok-soft); color: var(--ok); }

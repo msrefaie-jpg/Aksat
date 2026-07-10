@@ -257,17 +257,26 @@
     </div>
     <div class="login-card">
       <form id="loginForm" class="form" style="padding:0">
+        <label id="nameField" class="hidden">الاسم
+          <input type="text" id="loginName" autocomplete="name" placeholder="اسمك" />
+        </label>
         <label>البريد الإلكتروني
           <input type="email" id="loginEmail" autocomplete="username" required placeholder="you@example.com" />
         </label>
         <label>كلمة المرور
           <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="••••••••" />
         </label>
+        <div id="forgotRow" style="text-align:start;margin:-6px 0 2px">
+          <span class="link-inline" id="forgotLink">نسيت كلمة المرور؟</span>
+        </div>
         <button type="submit" class="btn primary" id="loginBtn" style="width:100%;margin-top:6px">تسجيل الدخول</button>
       </form>
       <div id="loginMsg" class="msg hidden" style="margin-top:12px"></div>
     </div>
-    <p class="login-note">استخدم نفس بريد وكلمة مرور حسابك.</p>
+    <p class="login-note">
+      <span id="authToggleText">ليس لديك حساب؟</span>
+      <span class="link-inline light" id="authToggleBtn">أنشئ حسابًا</span>
+    </p>
   </div>
 
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
