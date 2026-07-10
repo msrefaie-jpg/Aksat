@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -329,9 +329,38 @@
     </p>
   </div>
 
+  <!-- شاشة الترحيب لأول استخدام -->
+  <div class="onboard-overlay hidden" id="onboardOverlay">
+    <div class="onboard-card">
+      <button type="button" class="onboard-skip" id="onboardSkip">تخطٍّ</button>
+      <div class="onboard-slides" id="onboardSlides">
+        <div class="onboard-slide">
+          <div class="onboard-ic">👋</div>
+          <h2>مرحبًا بك في «أقساط»</h2>
+          <p>تابِع كل التزاماتك بالتقسيط — عقارات وسيارات وغيرها — في مكان واحد منظّم، مع جدول أقساط تلقائي وتنبيهات بالمواعيد.</p>
+        </div>
+        <div class="onboard-slide">
+          <div class="onboard-ic">💱</div>
+          <h2>ثلاث عملات وأسعار تلقائية</h2>
+          <p>اعرض المتبقّي والمستحق بالجنيه المصري والريال السعودي والدولار، مع تحديث سعر الصرف تلقائيًا من الإنترنت.</p>
+        </div>
+        <div class="onboard-slide">
+          <div class="onboard-ic">☁️</div>
+          <h2>مزامنة ومشاركة آمنة</h2>
+          <p>بياناتك محفوظة سحابيًا وتظهر على كل أجهزتك، ويمكنك مشاركة محفظتك بأدوار (محرّر/مشاهد) مع شريكك أو محاسبك.</p>
+        </div>
+      </div>
+      <div class="onboard-dots" id="onboardDots"></div>
+      <div class="onboard-actions">
+        <button type="button" class="btn ghost hidden" id="onboardBack">السابق</button>
+        <button type="button" class="btn primary" id="onboardNext" style="flex:1">التالي</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

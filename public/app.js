@@ -952,6 +952,38 @@ function emptyState(title, msg, icon) {
   return `<div class="empty"><div class="big">${icon}</div><div style="font-weight:700;color:var(--ink)">${title}</div><div style="margin-top:4px">${msg}</div></div>`;
 }
 
+/* ---------- شاشة الترحيب لأول استخدام ---------- */
+const ONBOARD_KEY = 'aksat_onboarded';
+let onboardStep = 0;
+function onboardSlideCount() { return $$('#onboardSlides .onboard-slide').length; }
+function maybeShowOnboarding() {
+  if (!currentUser) return;
+  if (localStorage.getItem(ONBOARD_KEY)) return;
+  if (state.units.length) { localStorage.setItem(ONBOARD_KEY, '1'); return; } // مستخدم لديه بيانات (منقولة) → لا حاجة
+  onboardStep = 0;
+  renderOnboard();
+  $('#onboardOverlay').classList.remove('hidden');
+}
+function renderOnboard() {
+  const n = onboardSlideCount();
+  $$('#onboardSlides .onboard-slide').forEach((s, i) => s.classList.toggle('on', i === onboardStep));
+  const dots = $('#onboardDots');
+  if (dots) dots.innerHTML = Array.from({ length: n }, (_, i) => `<span class="odot ${i === onboardStep ? 'on' : ''}"></span>`).join('');
+  const last = onboardStep >= n - 1;
+  $('#onboardBack').classList.toggle('hidden', onboardStep === 0);
+  $('#onboardNext').textContent = last ? 'أضف أول وحدة' : 'التالي';
+}
+function nextOnboard() {
+  if (onboardStep >= onboardSlideCount() - 1) { finishOnboarding(true); return; }
+  onboardStep++; renderOnboard();
+}
+function prevOnboard() { if (onboardStep > 0) { onboardStep--; renderOnboard(); } }
+function finishOnboarding(openUnit) {
+  localStorage.setItem(ONBOARD_KEY, '1');
+  $('#onboardOverlay').classList.add('hidden');
+  if (openUnit && canEdit()) openUnitModal(null);
+}
+
 function renderAll() {
   renderSummary();
   renderDashboard();
@@ -1416,6 +1448,7 @@ async function loadActivePortfolio(initPrefs) {
   updateRateInfoUI();
   if (state.autoRate) fetchAutoRate(false);
   maybeShowBrowserNotif();
+  if (initPrefs) maybeShowOnboarding(); // فقط عند أول دخول للجلسة، وليس عند تبديل المحافظ
 }
 
 async function switchPortfolio(key) {
@@ -1595,6 +1628,12 @@ function bindEvents() {
     if (!runChecks(f, [['newDate', !f.newDate.value, 'أدخل التاريخ الجديد']])) return;
     savePostpone(f.newDate.value);
   });
+
+  // شاشة الترحيب
+  const onNext = $('#onboardNext'), onBack = $('#onboardBack'), onSkip = $('#onboardSkip');
+  if (onNext) onNext.addEventListener('click', nextOnboard);
+  if (onBack) onBack.addEventListener('click', prevOnboard);
+  if (onSkip) onSkip.addEventListener('click', () => finishOnboarding(false));
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); $('#notifPanel').classList.add('hidden'); }

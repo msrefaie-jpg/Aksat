@@ -461,6 +461,33 @@ input.invalid, select.invalid { border-color: #dc2626 !important; background: rg
   display: flex; flex-direction: column; justify-content: center;
   padding: 40px 28px;
 }
+
+/* شاشة الترحيب لأول استخدام */
+.onboard-overlay {
+  position: fixed; inset: 0; z-index: 240;
+  background: linear-gradient(160deg, #0f766e 0%, #0b5850 60%, #083f3a 100%);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.onboard-overlay.hidden { display: none; }
+.onboard-card {
+  position: relative; width: 100%; max-width: 380px;
+  background: var(--card); border-radius: 22px; padding: 30px 24px 22px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3); text-align: center;
+}
+.onboard-skip {
+  position: absolute; top: 12px; inset-inline-start: 14px;
+  background: none; border: none; color: var(--ink-soft); font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.onboard-slides { min-height: 210px; display: flex; align-items: center; justify-content: center; }
+.onboard-slide { display: none; }
+.onboard-slide.on { display: block; animation: viewIn .25s ease; }
+.onboard-ic { font-size: 56px; line-height: 1; margin-bottom: 14px; }
+.onboard-slide h2 { font-size: 21px; color: var(--ink); margin-bottom: 10px; }
+.onboard-slide p { font-size: 15px; line-height: 1.7; color: var(--ink-soft); }
+.onboard-dots { display: flex; gap: 7px; justify-content: center; margin: 18px 0; }
+.onboard-dots .odot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: .2s; }
+.onboard-dots .odot.on { background: var(--brand); width: 22px; border-radius: 4px; }
+.onboard-actions { display: flex; gap: 10px; }
 body.authed .login-overlay { display: none; }
 .login-head { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 40px; }
 .login-logo {
