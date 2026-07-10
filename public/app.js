@@ -68,7 +68,7 @@ function unitType(u) { return allTypes().find(t => t.key === (u && u.type)) || {
 // أرقام لاتينية (إنجليزية) موحّدة + رموز العملات الرسمية
 const NF = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 // رمز الريال السعودي الجديد (SVG مضمّن يتبع لون النص — يعمل في الوضع الداكن)
-const SAR_SVG = '<svg class="sar-sym" viewBox="0 0 100 100" fill="currentColor" role="img" aria-label="ريال سعودي" focusable="false"><polygon points="38,10 50,4 50,54 38,60"/><polygon points="57,10 69,4 69,48 57,54"/><polygon points="50,4 70,4 70,15 50,15"/><polygon points="69,4 86,4 86,15 69,15"/><polygon points="16,50 88,43 88,55 16,62"/><polygon points="16,68 88,61 88,73 16,80"/><polygon points="52,84 88,79 88,91 52,96"/></svg>';
+const SAR_SVG = '<svg class="sar-sym" viewBox="0 0 1124.14 1256.39" fill="currentColor" role="img" aria-label="ريال سعودي" focusable="false"><path d="M699.62,1113.02h0c-20.06,44.48-33.32,92.75-38.4,143.37l424.51-90.24c20.06-44.47,33.31-92.75,38.4-143.37l-424.51,90.24Z"/><path d="M1085.73,895.8c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.33v-135.2l292.27-62.11c20.06-44.47,33.32-92.75,38.4-143.37l-330.68,70.27V66.13c-50.67,28.45-95.67,66.32-132.25,110.99v403.35l-132.25,28.11V0c-50.67,28.44-95.67,66.32-132.25,110.99v525.69l-295.91,62.88c-20.06,44.47-33.33,92.75-38.42,143.37l334.33-71.05v170.26l-358.3,76.14c-20.06,44.47-33.32,92.75-38.4,143.37l375.04-79.7c30.53-6.35,56.77-24.4,73.83-49.24l68.78-101.97v-.02c7.14-10.55,11.3-23.27,11.3-36.97v-149.98l132.25-28.11v270.4l424.53-90.28Z"/></svg>';
 const SYM = { EGP: '£', SAR: SAR_SVG, USD: '$' };
 const SYM_TXT = { EGP: '£', SAR: 'ريال', USD: '$' }; // بديل نصّي للسياقات غير HTML (الإشعارات)
 function fmtEGP(n) { return NF.format(Math.round(n || 0)) + ' ' + SYM.EGP; }
