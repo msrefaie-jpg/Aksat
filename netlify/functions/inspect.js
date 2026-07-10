@@ -26,35 +26,49 @@ exports.handler = async (event) => {
   try {
     const sql = neon(process.env.DATABASE_URL);
 
-    // جداول المخطط العام
+    // معلومات عامة عن القاعدة الحالية
+    const info = await sql`SELECT current_database() AS db, current_schema() AS schema, current_user AS usr`;
+    const schemas = await sql`
+      SELECT schema_name FROM information_schema.schemata
+      WHERE schema_name NOT IN ('pg_catalog','information_schema','pg_toast')
+      ORDER BY schema_name`;
+
+    // جداول في كل المخططات غير النظامية
     const tables = await sql`
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      ORDER BY table_name`;
+      SELECT table_schema, table_name FROM information_schema.tables
+      WHERE table_type = 'BASE TABLE'
+        AND table_schema NOT IN ('pg_catalog','information_schema','pg_toast')
+      ORDER BY table_schema, table_name`;
 
     const out = [];
     for (const t of tables) {
-      const name = t.table_name;
+      const schema = t.table_schema, name = t.table_name;
       const cols = await sql`
         SELECT column_name, data_type FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = ${name}
+        WHERE table_schema = ${schema} AND table_name = ${name}
         ORDER BY ordinal_position`;
-      // عدد الصفوف وعيّنة (نتجنّب الجدول الخاص بالتطبيق الجديد)
       let count = 0, sample = [];
       try {
-        const c = await sql.query(`SELECT count(*)::int AS n FROM "${name}"`);
+        const c = await sql.query(`SELECT count(*)::int AS n FROM "${schema}"."${name}"`);
         count = (c[0] && c[0].n) || 0;
-        const s = await sql.query(`SELECT * FROM "${name}" LIMIT 5`);
+        const s = await sql.query(`SELECT * FROM "${schema}"."${name}" LIMIT 5`);
         sample = s;
       } catch (e) { /* نتجاهل جداول يصعب قراءتها */ }
       out.push({
+        schema,
         table: name,
         columns: cols.map(c => ({ name: c.column_name, type: c.data_type })),
         rowCount: count,
         sample,
       });
     }
-    return reply(200, { database: 'ok', tables: out });
+    return reply(200, {
+      database: info[0].db,
+      user: info[0].usr,
+      schemas: schemas.map(s => s.schema_name),
+      tableCount: out.length,
+      tables: out,
+    });
   } catch (err) {
     return reply(500, { error: 'خطأ: ' + (err.message || String(err)) });
   }
