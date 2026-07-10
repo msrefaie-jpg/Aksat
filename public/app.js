@@ -136,6 +136,7 @@ function withDefaults(obj) {
   delete s.assets;
   if (!Array.isArray(s.customTypes)) s.customTypes = [];
   if (!Array.isArray(s.reports)) s.reports = [];
+  if (!Array.isArray(s.activity)) s.activity = [];
   // ترحيل: ضمان وجود سجلّ (hist) لكل قسط + توليد قيد دفع للأقساط المدفوعة سابقاً
   (s.units || []).forEach(u => {
     (u.installments || []).forEach(i => {
@@ -156,6 +157,33 @@ function withDefaults(obj) {
 function pushHist(i, k, extra) {
   if (!Array.isArray(i.hist)) i.hist = [];
   i.hist.push(Object.assign({ t: nowISO(), k }, extra || {}));
+}
+
+/* سجلّ نشاط المحفظة (من عدّل ماذا) — يُخزَّن ضمن الحالة ويُزامَن */
+function actorName() {
+  if (!currentUser) return 'مستخدم';
+  return currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : '') || 'مستخدم';
+}
+function logActivity(text) {
+  if (!Array.isArray(state.activity)) state.activity = [];
+  state.activity.push({ at: nowISO(), uid: (currentUser && currentUser.uid) || '', name: actorName(), text });
+  if (state.activity.length > 200) state.activity = state.activity.slice(-200);
+}
+function openActivity() {
+  closeAccountModal();
+  renderActivity();
+  $('#activityModal').classList.remove('hidden');
+}
+function closeActivity() { $('#activityModal').classList.add('hidden'); }
+function renderActivity() {
+  const el = $('#activityTimeline');
+  const list = (state.activity || []).slice().reverse();
+  if (!list.length) { el.innerHTML = '<div class="rsub">لا نشاط مُسجّل بعد.</div>'; return; }
+  const me = (currentUser && currentUser.uid) || '';
+  el.innerHTML = list.map(e => {
+    const you = e.uid && e.uid === me;
+    return `<div class="tl-item"><span class="tl-ic">${you ? '🧑' : '👤'}</span><div class="tl-body"><div class="tl-txt">${escapeHtml(e.text || '')}</div><div class="tl-time"><b>${escapeHtml(e.name || 'مستخدم')}${you ? ' (أنت)' : ''}</b> · ${fmtDateTime(e.at)}</div></div></div>`;
+  }).join('');
 }
 
 /* ---------- المحافظ والأدوار ---------- */
@@ -859,9 +887,11 @@ function renderSettle() {
 function paySelected() {
   if (!settleSelected.size) return;
   if (!confirm(`تحديد ${settleSelected.size} قسط كمدفوع؟`)) return;
+  let n = 0, sum = 0;
   state.units.forEach(u => (u.installments || []).forEach(i => {
-    if (settleSelected.has(i.id) && !i.paid) { i.paid = true; i.paidDate = todayISO(); pushHist(i, 'paid', { amt: Number(i.amount) || 0 }); }
+    if (settleSelected.has(i.id) && !i.paid) { i.paid = true; i.paidDate = todayISO(); pushHist(i, 'paid', { amt: Number(i.amount) || 0 }); n++; sum += Number(i.amount) || 0; }
   }));
+  if (n) logActivity(`سدّد ${n} قسطًا بإجمالي ${fmtEGP(sum)}`);
   settleSelected.clear();
   persist(); renderAll();
 }
@@ -1307,6 +1337,7 @@ function savePostpone(newDate) {
   const from = i.dueDate;
   i.dueDate = newDate;
   pushHist(i, 'postpone', { from, to: newDate });
+  logActivity(`أجّل قسطًا في «${u.name}» إلى ${fmtDate(newDate)}`);
   if (!/تأجيل/.test(i.label || '')) i.label = (i.label ? i.label + ' ' : '') + '(مؤجّل)';
   closePostpone(); persist(); renderAll();
 }
@@ -1470,17 +1501,21 @@ function togglePaid(unitId, instId) {
   const i = u.installments.find(x => x.id === instId); if (!i) return;
   i.paid = !i.paid; i.paidDate = i.paid ? todayISO() : null;
   pushHist(i, i.paid ? 'paid' : 'unpaid', i.paid ? { amt: Number(i.amount) || 0 } : {});
+  logActivity(i.paid ? `سدّد قسط ${fmtEGP(i.amount)} في «${u.name}»` : `ألغى سداد قسط في «${u.name}»`);
   persist(); renderAll();
 }
 function deleteInstallment(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
+  const i = u.installments.find(x => x.id === instId);
   u.installments = u.installments.filter(x => x.id !== instId);
+  logActivity(`حذف قسط${i ? ' ' + fmtEGP(i.amount) : ''} من «${u.name}»`);
   persist(); renderAll();
 }
 function deleteUnit(id) {
   const u = findUnit(id); if (!u) return;
   if (!confirm(`حذف الوحدة «${u.name}» وكل أقساطها؟`)) return;
   state.units = state.units.filter(x => x.id !== id);
+  logActivity(`حذف وحدة «${u.name}»`);
   persist(); renderAll();
 }
 
@@ -1849,8 +1884,8 @@ function bindEvents() {
       totalPrice: total, downPayment: down,
       notes: f.notes.value.trim(), type: editUnitType,
     };
-    if (editingUnitId) Object.assign(findUnit(editingUnitId), data);
-    else state.units.push({ id: uid(), ...data, installments: [], _open: true });
+    if (editingUnitId) { Object.assign(findUnit(editingUnitId), data); logActivity(`عدّل وحدة «${data.name}»`); }
+    else { state.units.push({ id: uid(), ...data, installments: [], _open: true }); logActivity(`أضاف وحدة «${data.name}»`); }
     closeUnitModal(); persist(); renderAll();
     toast(editingUnitId ? 'تم حفظ التعديلات' : 'تمت إضافة الوحدة');
     if (currentView === 'dashboard') switchView('units');
@@ -1873,6 +1908,7 @@ function bindEvents() {
       ['dueDate', !f.dueDate.value, 'أدخل تاريخ الاستحقاق'],
     ])) return;
     u.installments.push({ id: uid(), amount, dueDate: f.dueDate.value, label: f.label.value.trim(), paid: false, paidDate: null, hist: [{ t: nowISO(), k: 'created' }] });
+    logActivity(`أضاف قسط ${fmtEGP(amount)} لـ«${u.name}»`);
     u._open = true; closeInstModal(); persist(); renderAll();
     toast('تمت إضافة القسط');
   });
@@ -1892,6 +1928,7 @@ function bindEvents() {
     for (let k = 0; k < count; k++) {
       u.installments.push({ id: uid(), amount, dueDate: addMonths(start, k * freq), label: `قسط ${k + 1} من ${count}`, paid: false, paidDate: null, hist: [{ t: nowISO(), k: 'created' }] });
     }
+    logActivity(`أضاف جدول ${count} قسط (${fmtEGP(amount)} لكلٍّ) لـ«${u.name}»`);
     u._open = true; closeInstModal(); persist(); renderAll();
     toast(`تمت إضافة ${count} قسط`);
   });
@@ -1993,6 +2030,11 @@ function bindEvents() {
     savePostpone(f.newDate.value);
   });
 
+  // سجلّ النشاط
+  $('#activityBtn').addEventListener('click', openActivity);
+  $('#closeActivity').addEventListener('click', closeActivity);
+  $('#activityModal').addEventListener('click', e => { if (e.target.id === 'activityModal') closeActivity(); });
+
   // مشاركة رابط التقرير
   $('#closeReportShare').addEventListener('click', closeReportShare);
   $('#reportShareModal').addEventListener('click', e => { if (e.target.id === 'reportShareModal') closeReportShare(); });
@@ -2037,7 +2079,7 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); closeReportShare(); $('#notifPanel').classList.add('hidden'); }
+    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); closeReportShare(); closeActivity(); $('#notifPanel').classList.add('hidden'); }
   });
 }
 

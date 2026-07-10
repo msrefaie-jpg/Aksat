@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -232,6 +232,20 @@
     </div>
   </div>
 
+  <!-- نافذة سجلّ نشاط المحفظة -->
+  <div class="modal-overlay hidden" id="activityModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="actTitle">
+      <div class="modal-head">
+        <h3 id="actTitle">سجلّ نشاط المحفظة</h3>
+        <button class="icon-btn" id="closeActivity" aria-label="إغلاق">✕</button>
+      </div>
+      <div class="form">
+        <p class="hint">أحدث التغييرات على هذه المحفظة — من قام بها ومتى. يظهر النشاط لكل من يشارك المحفظة.</p>
+        <div class="timeline" id="activityTimeline"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- نافذة مشاركة رابط التقرير -->
   <div class="modal-overlay hidden" id="reportShareModal">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rsTitle">
@@ -345,6 +359,7 @@
           </div>
         </div>
         <div id="shareMsg" class="msg hidden" style="margin-top:8px"></div>
+        <button type="button" class="btn ghost small" id="activityBtn" style="margin-top:10px">📋 سجلّ نشاط المحفظة</button>
 
         <hr class="sep" />
         <div class="acct-title">إعدادات التطبيق</div>
@@ -478,6 +493,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>
