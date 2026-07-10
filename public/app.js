@@ -832,7 +832,8 @@ function monthlyBarChart(months) {
     labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 18}" text-anchor="middle">${monthShort(b.y, b.m)}</text>`;
     if (k === 0 || b.m === 0) labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 32}" text-anchor="middle" style="opacity:.7">${b.y}</text>`;
   });
-  return `<svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">${grid}${bars}${labels}</svg>`;
+  const barsLabel = `رسم بياني لأعمدة الأقساط المستحقة خلال ${N} أشهر قادمة`;
+  return `<svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${barsLabel}">${grid}${bars}${labels}</svg>`;
 }
 
 function donutChart(paid, remaining) {
@@ -842,7 +843,7 @@ function donutChart(paid, remaining) {
   const dash = C * pct;
   return `
   <div class="donut-wrap">
-    <svg class="chart-svg donut-svg" viewBox="0 0 180 180" role="img">
+    <svg class="chart-svg donut-svg" viewBox="0 0 180 180" role="img" aria-label="نسبة السداد الإجمالية ${Math.round(pct * 100)}٪ — مدفوع ${fmtEGP(paid)}، متبقٍّ ${fmtEGP(remaining)}">
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--ok)" stroke-width="${stroke}"
         stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${C * 0.25}" stroke-linecap="round"
@@ -1204,7 +1205,7 @@ let postponeTarget = null; // { unitId, instId }
 
 function switchView(view) {
   currentView = view;
-  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  $$('.tab').forEach(t => { const on = t.dataset.view === view; t.classList.toggle('active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
   $$('.view').forEach(v => v.classList.add('hidden'));
   $('#view-' + view).classList.remove('hidden');
   const sum = $('#summary');
@@ -1471,7 +1472,7 @@ async function leavePortfolio(key) {
 let toastTimer = null;
 function toast(text) {
   let t = $('#toast');
-  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
   t.textContent = text; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
@@ -1663,6 +1664,7 @@ async function switchPortfolio(key) {
    ========================================================================== */
 function bindEvents() {
   $('#fxLine').addEventListener('click', () => fetchAutoRate(true));
+  $('#fxLine').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fetchAutoRate(true); } });
   $('#darkBtn').addEventListener('click', toggleDark);
 
   $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));

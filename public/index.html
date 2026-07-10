@@ -10,22 +10,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
+  <a href="#mainContent" class="skip-link">تخطَّ إلى المحتوى</a>
   <header class="app-header">
     <div class="brand">
       <img src="icon-192.png" alt="أقساط" class="brand-logo" />
       <div>
         <h1>أقساط</h1>
-        <div class="fx-line" id="fxLine" title="تحديث سعر الصرف">
+        <div class="fx-line" id="fxLine" title="تحديث سعر الصرف" role="button" tabindex="0" aria-label="تحديث سعر الصرف من الإنترنت">
           <span>$1 = <b id="fxUsd">50</b> E£</span>
-          <span class="sep">·</span>
+          <span class="sep" aria-hidden="true">·</span>
           <span>﷼1 = <b id="fxSar">13.3</b> E£</span>
-          <span class="spin-ic">⟳</span>
+          <span class="spin-ic" aria-hidden="true">⟳</span>
         </div>
       </div>
     </div>
@@ -39,11 +40,11 @@
   </header>
 
   <div class="sync-bar" id="syncBar">
-    <span id="syncStatus">…</span>
-    <button class="link-btn" id="accountBtn">الإعدادات</button>
+    <span id="syncStatus" role="status" aria-live="polite">…</span>
+    <button class="link-btn" id="accountBtn" aria-haspopup="dialog">الإعدادات</button>
   </div>
 
-  <main class="container">
+  <main class="container" id="mainContent" tabindex="-1">
     <div class="pf-indicator hidden" id="pfIndicator"></div>
     <div class="greeting" id="greeting"></div>
     <section class="summary" id="summary" aria-label="ملخص عام"></section>
@@ -102,7 +103,7 @@
 
   <!-- نافذة الوحدة -->
   <div class="modal-overlay hidden" id="unitModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unitModalTitle">
       <div class="modal-head">
         <h3 id="unitModalTitle">إضافة وحدة</h3>
         <button class="icon-btn" id="closeUnitModal" aria-label="إغلاق">✕</button>
@@ -139,7 +140,7 @@
 
   <!-- نافذة القسط -->
   <div class="modal-overlay hidden" id="installmentModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="instModalTitle">
       <div class="modal-head">
         <h3 id="instModalTitle">إضافة قسط</h3>
         <button class="icon-btn" id="closeInstModal" aria-label="إغلاق">✕</button>
@@ -198,9 +199,9 @@
 
   <!-- نافذة تأجيل القسط -->
   <div class="modal-overlay hidden" id="postponeModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="postponeTitle">
       <div class="modal-head">
-        <h3>تأجيل القسط</h3>
+        <h3 id="postponeTitle">تأجيل القسط</h3>
         <button class="icon-btn" id="closePostponeModal" aria-label="إغلاق">✕</button>
       </div>
       <form id="postponeForm" class="form">
@@ -218,9 +219,9 @@
 
   <!-- نافذة تعارض المزامنة -->
   <div class="modal-overlay hidden" id="conflictModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="conflictTitle">
       <div class="modal-head">
-        <h3>تعارض في المزامنة</h3>
+        <h3 id="conflictTitle">تعارض في المزامنة</h3>
       </div>
       <div class="form">
         <p class="hint">عُدّلت بيانات هذه المحفظة من جهاز آخر بينما لديك تعديلات على هذا الجهاز لم تُرفَع بعد. اختر النسخة التي تريد اعتمادها:</p>
@@ -233,9 +234,9 @@
 
   <!-- نافذة الحساب والمزامنة -->
   <div class="modal-overlay hidden" id="accountModal">
-    <div class="modal settings-modal" role="dialog" aria-modal="true">
+    <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="modal-head">
-        <h3>الإعدادات</h3>
+        <h3 id="settingsTitle">الإعدادات</h3>
         <button class="icon-btn" id="closeAccountModal" aria-label="إغلاق">✕</button>
       </div>
       <div class="form">
@@ -352,22 +353,22 @@
   </div>
 
   <!-- شاشة الترحيب لأول استخدام -->
-  <div class="onboard-overlay hidden" id="onboardOverlay">
+  <div class="onboard-overlay hidden" id="onboardOverlay" role="dialog" aria-modal="true" aria-label="ترحيب بالتطبيق">
     <div class="onboard-card">
       <button type="button" class="onboard-skip" id="onboardSkip">تخطٍّ</button>
       <div class="onboard-slides" id="onboardSlides">
         <div class="onboard-slide">
-          <div class="onboard-ic">👋</div>
+          <div class="onboard-ic" aria-hidden="true">👋</div>
           <h2>مرحبًا بك في «أقساط»</h2>
           <p>تابِع كل التزاماتك بالتقسيط — عقارات وسيارات وغيرها — في مكان واحد منظّم، مع جدول أقساط تلقائي وتنبيهات بالمواعيد.</p>
         </div>
         <div class="onboard-slide">
-          <div class="onboard-ic">💱</div>
+          <div class="onboard-ic" aria-hidden="true">💱</div>
           <h2>ثلاث عملات وأسعار تلقائية</h2>
           <p>اعرض المتبقّي والمستحق بالجنيه المصري والريال السعودي والدولار، مع تحديث سعر الصرف تلقائيًا من الإنترنت.</p>
         </div>
         <div class="onboard-slide">
-          <div class="onboard-ic">☁️</div>
+          <div class="onboard-ic" aria-hidden="true">☁️</div>
           <h2>مزامنة ومشاركة آمنة</h2>
           <p>بياناتك محفوظة سحابيًا وتظهر على كل أجهزتك، ويمكنك مشاركة محفظتك بأدوار (محرّر/مشاهد) مع شريكك أو محاسبك.</p>
         </div>
@@ -381,9 +382,9 @@
   </div>
 
   <!-- شاشة القفل -->
-  <div class="lock-overlay hidden" id="lockOverlay">
+  <div class="lock-overlay hidden" id="lockOverlay" role="dialog" aria-modal="true" aria-label="التطبيق مقفل — أدخل الرمز">
     <div class="lock-inner">
-      <img src="icon-192.png" alt="أقساط" class="lock-logo" />
+      <img src="icon-192.png" alt="" class="lock-logo" aria-hidden="true" />
       <div class="lock-title">التطبيق مقفل</div>
       <div class="lock-sub">أدخل الرمز لفتح التطبيق</div>
       <div class="lock-dots" id="lockDots"></div>
@@ -399,7 +400,7 @@
         <button type="button" class="pad" data-key="9">9</button>
         <span></span>
         <button type="button" class="pad" data-key="0">0</button>
-        <button type="button" class="pad pad-del" data-key="del">⌫</button>
+        <button type="button" class="pad pad-del" data-key="del" aria-label="حذف">⌫</button>
       </div>
       <button type="button" class="lock-bio hidden" id="lockBioBtn">👆 فتح بالبصمة / Face ID</button>
     </div>
@@ -408,6 +409,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
