@@ -98,6 +98,27 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* هياكل التحميل (skeletons) */
+.skel {
+  position: relative; overflow: hidden; border-radius: 8px;
+  background: var(--surface2, rgba(128,128,128,.12));
+}
+.skel::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  animation: shimmer 1.2s infinite;
+}
+@media (prefers-color-scheme: dark) { .skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); } }
+body.dark .skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skel-card { pointer-events: none; }
+.skel-line { height: 12px; margin: 8px 0; }
+.skel-line.sm { width: 45%; }
+.skel-line.md { width: 60%; height: 16px; }
+.skel-line.lg { width: 80%; height: 26px; }
+.skel-block { height: 120px; margin-top: 12px; border-radius: 10px; }
+.skel-donut { width: 172px; height: 172px; border-radius: 50%; margin: 12px auto; }
+
 /* شريط المزامنة */
 .sync-bar {
   display: flex; align-items: center; justify-content: space-between;

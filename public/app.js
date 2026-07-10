@@ -170,6 +170,7 @@ function resetState() {
 
 let syncTimer = null;
 let pendingSync = false;
+let syncingInitial = false; // أثناء أول مزامنة بلا بيانات محلية → نعرض هياكل تحميل
 
 function touch() { state.updatedAt = nowISO(); }
 
@@ -294,6 +295,15 @@ function unitScheduledTotal(u) {
    العرض — الملخص ولوحة التحكم والوحدات والقادمة
    ========================================================================== */
 function renderSummary() {
+  if (syncingInitial && !state.units.length) {
+    $('#summary').innerHTML = Array.from({ length: 4 }, () => `
+      <div class="stat skel-card">
+        <div class="skel skel-line sm"></div>
+        <div class="skel skel-line lg"></div>
+        <div class="skel skel-line sm"></div>
+      </div>`).join('');
+    return;
+  }
   const unpaid = allInstallments().filter(i => !i.paid);
   const totalRemaining = unpaid.reduce((s, i) => s + Number(i.amount || 0), 0);
   const overdue = unpaid.filter(i => daysBetween(i.dueDate) < 0);
@@ -317,6 +327,12 @@ function renderSummary() {
 
 function renderDashboard() {
   const el = $('#view-dashboard');
+  if (syncingInitial && !state.units.length) {
+    el.innerHTML = `
+      <div class="card skel-card"><div class="skel skel-line md"></div><div class="skel skel-block"></div></div>
+      <div class="card skel-card"><div class="skel skel-line md"></div><div class="skel skel-donut"></div></div>`;
+    return;
+  }
   if (!state.units.length) {
     el.innerHTML = emptyState('لا توجد وحدات بعد', 'أضف أول وحدة عقارية لتبدأ متابعة أقساطك.', '🏠');
     return;
@@ -1386,9 +1402,11 @@ async function loadActivePortfolio(initPrefs) {
   loadLocal();
   $('#rateInput').value = state.rate;
   applyRoleUI();
+  syncingInitial = !state.units.length && cloudAvailable && !!currentUser;
   renderAll();
 
   await syncOnLoad();
+  syncingInitial = false;
 
   if (initPrefs && canEdit() && !state._prefsInit) { state.autoRate = true; state._prefsInit = true; persist(); }
 
