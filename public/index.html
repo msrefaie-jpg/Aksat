@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -23,9 +23,9 @@
       <div>
         <h1>أقساط</h1>
         <div class="fx-line" id="fxLine" title="تحديث سعر الصرف" role="button" tabindex="0" aria-label="تحديث سعر الصرف من الإنترنت">
-          <span>$1 = <b id="fxUsd">50</b> E£</span>
+          <span>$1 = <b id="fxUsd">50</b> £</span>
           <span class="sep" aria-hidden="true">·</span>
-          <span>﷼1 = <b id="fxSar">13.3</b> E£</span>
+          <span><svg class="sar-sym" viewBox="0 0 100 100" fill="currentColor" aria-label="ريال" focusable="false"><polygon points="38,10 50,4 50,54 38,60"/><polygon points="57,10 69,4 69,48 57,54"/><polygon points="50,4 70,4 70,15 50,15"/><polygon points="69,4 86,4 86,15 69,15"/><polygon points="16,50 88,43 88,55 16,62"/><polygon points="16,68 88,61 88,73 16,80"/><polygon points="52,84 88,79 88,91 52,96"/></svg>1 = <b id="fxSar">13.3</b> £</span>
           <span class="spin-ic" aria-hidden="true">⟳</span>
         </div>
       </div>
@@ -120,10 +120,10 @@
           <input type="text" name="project" placeholder="مثال: مدينة نصر للإسكان" />
         </label>
         <div class="row">
-          <label>إجمالي السعر (E£)
+          <label>إجمالي السعر (£)
             <input type="number" name="totalPrice" min="0" step="0.01" inputmode="decimal" placeholder="0" />
           </label>
-          <label>المقدم المدفوع (E£)
+          <label>المقدم المدفوع (£)
             <input type="number" name="downPayment" min="0" step="0.01" inputmode="decimal" placeholder="0" />
           </label>
         </div>
@@ -151,7 +151,7 @@
       </div>
       <form id="singleForm" class="form">
         <div class="row">
-          <label>المبلغ (E£) *
+          <label>المبلغ (£) *
             <input type="number" name="amount" required min="0" step="0.01" inputmode="decimal" />
           </label>
           <label>تاريخ الاستحقاق *
@@ -168,7 +168,7 @@
       </form>
       <form id="scheduleForm" class="form hidden">
         <div class="row">
-          <label>قيمة القسط (E£) *
+          <label>قيمة القسط (£) *
             <input type="number" name="amount" required min="0" step="0.01" inputmode="decimal" />
           </label>
           <label>عدد الأقساط *
@@ -409,6 +409,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

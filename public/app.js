@@ -4,7 +4,7 @@
    • سعر صرف تلقائي محدّث من الإنترنت (الريال → الجنيه).
    • تنبيهات للأقساط المستحقة والمتأخّرة (داخل التطبيق + إشعارات المتصفح).
    • تقارير ورسوم بيانية (SVG) لتوزيع الأقساط ونسب السداد.
-   العملة الأساسية: الجنيه المصري (ج.م) مع عرض المقابل بالريال السعودي (﷼).
+   العملة الأساسية: الجنيه المصري (£) مع عرض المقابل بالريال السعودي والدولار.
    ========================================================================== */
 
 'use strict';
@@ -67,9 +67,13 @@ function unitType(u) { return allTypes().find(t => t.key === (u && u.type)) || {
 
 // أرقام لاتينية (إنجليزية) موحّدة + رموز العملات الرسمية
 const NF = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-const SYM = { EGP: 'E£', SAR: '﷼', USD: '$' };
+// رمز الريال السعودي الجديد (SVG مضمّن يتبع لون النص — يعمل في الوضع الداكن)
+const SAR_SVG = '<svg class="sar-sym" viewBox="0 0 100 100" fill="currentColor" role="img" aria-label="ريال سعودي" focusable="false"><polygon points="38,10 50,4 50,54 38,60"/><polygon points="57,10 69,4 69,48 57,54"/><polygon points="50,4 70,4 70,15 50,15"/><polygon points="69,4 86,4 86,15 69,15"/><polygon points="16,50 88,43 88,55 16,62"/><polygon points="16,68 88,61 88,73 16,80"/><polygon points="52,84 88,79 88,91 52,96"/></svg>';
+const SYM = { EGP: '£', SAR: SAR_SVG, USD: '$' };
+const SYM_TXT = { EGP: '£', SAR: 'ريال', USD: '$' }; // بديل نصّي للسياقات غير HTML (الإشعارات)
 function fmtEGP(n) { return NF.format(Math.round(n || 0)) + ' ' + SYM.EGP; }
 function fmtSAR(n) { return NF.format(Math.round((n || 0) / state.rate)) + ' ' + SYM.SAR; }
+function fmtSARtext(n) { return NF.format(Math.round((n || 0) / state.rate)) + ' ' + SYM_TXT.SAR; }
 function fmtUSD(n) { return NF.format(Math.round((n || 0) / state.usdRate)) + ' ' + SYM.USD; }
 // تحويل مبلغ بعملة ما إلى جنيه مصري
 function toEGP(amount, cur) {
@@ -553,14 +557,16 @@ function renderUpcoming() {
         <div class="inst-list">
           ${items.map(i => {
             const d = daysBetween(i.dueDate), over = d < 0;
+            const postponed = /مؤجّل/.test(i.label || '');
             return `
             <div class="inst-row ${over ? 'overdue' : ''}">
               <button class="inst-check" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="تحديد كمدفوع"></button>
               <div class="inst-main">
                 <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
-                <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}</div>
+                <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
               </div>
               ${over ? `<span class="badge over">متأخّر</span>` : `<span class="badge due">${d} يوم</span>`}
+              <button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>
             </div>`;
           }).join('')}
         </div>
@@ -628,7 +634,7 @@ function printReport() {
   const nextOne = unpaid.filter(i => daysBetween(i.dueDate) >= 0).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   let html = `<h1>تقرير الأقساط — أقساط</h1>
-    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · 1 ﷼ = ${state.rate} E£ · 1 $ = ${state.usdRate} E£</div>
+    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · 1 ${SAR_SVG} = ${state.rate} £ · 1 $ = ${state.usdRate} £</div>
 
     <h2>المؤشرات</h2>
     <div class="pr-kpis">
@@ -639,7 +645,7 @@ function printReport() {
     </div>
     <div class="pr-bar"><span style="width:${pctPaid}%"></span></div>
     <table>
-      <tr><th>المؤشر</th><th class="num">E£</th><th class="num">﷼</th><th class="num">$</th></tr>
+      <tr><th>المؤشر</th><th class="num">£</th><th class="num">${SAR_SVG}</th><th class="num">$</th></tr>
       <tr class="pr-tot"><td>إجمالي مجدول</td><td class="num">${fmtEGP(tSch)}</td><td class="num">${fmtSAR(tSch)}</td><td class="num">${fmtUSD(tSch)}</td></tr>
       <tr><td>إجمالي مدفوع</td><td class="num">${fmtEGP(tPaid)}</td><td class="num">${fmtSAR(tPaid)}</td><td class="num">${fmtUSD(tPaid)}</td></tr>
       <tr class="pr-tot"><td>إجمالي متبقٍّ</td><td class="num">${fmtEGP(tRem)}</td><td class="num">${fmtSAR(tRem)}</td><td class="num">${fmtUSD(tRem)}</td></tr>
@@ -654,7 +660,7 @@ function printReport() {
     html += `<h2>${escapeHtml(u.name)}${u.project ? ' — ' + escapeHtml(u.project) : ''}</h2>
       <div class="pr-sub">المتبقّي: ${fmtEGP(rem)} (${fmtSAR(rem)}) · عدد الأقساط: ${insts.length}</div>
       <table>
-        <tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (E£)</th><th class="num">المبلغ (﷼)</th><th>الحالة</th></tr>
+        <tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (£)</th><th class="num">المبلغ (${SAR_SVG})</th><th>الحالة</th></tr>
         ${insts.map((i, k) => `<tr>
           <td>${k + 1}</td>
           <td>${escapeHtml(i.label || '')}</td>
@@ -744,7 +750,7 @@ function renderSettle() {
       <h3>💰 أرصدة الحسابات</h3>
       <div class="rsub">أضف حساباتك بأي عملة؛ يُقارن مجموعها بالأقساط المختارة.</div>
       <div class="acc-list">${accountsHtml()}</div>
-      <div class="rate-note">أسعار اليوم: 1 دولار = ${state.usdRate} E£ · 1 ريال = ${state.rate} E£
+      <div class="rate-note">أسعار اليوم: 1 دولار = ${state.usdRate} £ · 1 ريال = ${state.rate} £
         <button class="btn ghost small" data-act="settle-refresh" style="margin-inline-start:8px">⟳ تحديث</button></div>
     </div>
 
@@ -939,7 +945,7 @@ function maybeShowBrowserNotif() {
   const sum = [...overdue, ...urgent].reduce((s, i) => s + Number(i.amount || 0), 0);
   try {
     new Notification('أقساط — تنبيه استحقاق', {
-      body: `${parts.join(' · ')} — الإجمالي ${fmtEGP(sum)} (${fmtSAR(sum)})`,
+      body: `${parts.join(' · ')} — الإجمالي ${fmtEGP(sum)} (${fmtSARtext(sum)})`,
       dir: 'rtl', lang: 'ar',
     });
     localStorage.setItem(LASTNOTIF_KEY, todayISO());
@@ -1294,7 +1300,7 @@ function updateScheduleHint() {
   if (amount > 0 && count > 0) {
     const total = amount * count;
     const freqTxt = { 1: 'شهرياً', 3: 'كل ٣ أشهر', 6: 'كل ٦ أشهر', 12: 'سنوياً' }[freq];
-    $('#scheduleHint').textContent = `${count} قسط × ${fmtEGP(amount)} ${freqTxt} = إجمالي ${fmtEGP(total)} (${fmtSAR(total)})`;
+    $('#scheduleHint').innerHTML = `${count} قسط × ${fmtEGP(amount)} ${freqTxt} = إجمالي ${fmtEGP(total)} (${fmtSAR(total)})`;
   } else {
     $('#scheduleHint').textContent = 'سيتم إنشاء الأقساط تلقائياً بالتواريخ حسب التكرار المحدّد.';
   }

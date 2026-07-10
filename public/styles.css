@@ -345,6 +345,10 @@ input, select, textarea, button { font-size: 16px; }
 .badge.due { background: var(--warn-soft); color: var(--warn); }
 .badge.over { background: var(--danger-soft); color: var(--danger); }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.postponed { background: var(--brand-soft); color: var(--brand); font-size: 10.5px; }
+
+/* رمز الريال السعودي (SVG مضمّن يتبع لون النص) */
+.sar-sym { width: .9em; height: .9em; display: inline-block; vertical-align: -0.1em; margin: 0 1px; }
 
 .add-inst-btn {
   border: 1px dashed var(--line); background: transparent;
