@@ -12,7 +12,8 @@
 const LOCAL_KEY = 'aksat.state.v2';
 const NOTIF_KEY = 'aksat.notifEnabled';
 const LASTNOTIF_KEY = 'aksat.lastNotifDate';
-const DEFAULT_RATE = 13.3;
+const DEFAULT_RATE = 13.3;      // جنيه لكل ريال
+const DEFAULT_USD_RATE = 50;    // جنيه لكل دولار
 const API = '/api';
 
 // إعداد Firebase للمصادقة (قيَم عامة publishable)
@@ -29,8 +30,10 @@ const FIREBASE_CONFIG = {
 let state = {
   updatedAt: null,     // ختم زمني (ISO) يُضبط عند كل تعديل — يُستخدم للمزامنة
   rate: DEFAULT_RATE,  // عدد الجنيهات لكل ريال
+  usdRate: DEFAULT_USD_RATE, // عدد الجنيهات لكل دولار
   autoRate: false,     // تحديث السعر تلقائياً
   rateInfo: null,      // { source, fetchedAt }
+  assets: { usd: 0, egp: 0 }, // أرصدة الحسابات المصرية
   units: [],           // [{ id, name, project, totalPrice, downPayment, notes, installments:[] }]
 };
 
@@ -55,6 +58,10 @@ function fmtEGP(n) {
 function fmtSAR(n) {
   const sar = (n || 0) / state.rate;
   return '﷼ ' + new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 }).format(Math.round(sar));
+}
+function fmtUSD(n) {
+  const usd = (n || 0) / state.usdRate;
+  return '$' + new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(usd));
 }
 function fmtCompact(n) {
   n = Math.round(n || 0);
@@ -87,6 +94,20 @@ function escapeHtml(s) {
 /* ==========================================================================
    طبقة التخزين والمزامنة
    ========================================================================== */
+// دمج القيَم الافتراضية مع أي حالة محمّلة (للتوافق مع النسخ الأقدم)
+function withDefaults(obj) {
+  const s = Object.assign(
+    { updatedAt: null, rate: DEFAULT_RATE, usdRate: DEFAULT_USD_RATE, autoRate: false, rateInfo: null, assets: { usd: 0, egp: 0 }, units: [] },
+    obj || {}
+  );
+  if (!s.rate || s.rate <= 0) s.rate = DEFAULT_RATE;
+  if (!s.usdRate || s.usdRate <= 0) s.usdRate = DEFAULT_USD_RATE;
+  if (!s.assets || typeof s.assets !== 'object') s.assets = { usd: 0, egp: 0 };
+  s.assets.usd = Number(s.assets.usd) || 0;
+  s.assets.egp = Number(s.assets.egp) || 0;
+  return s;
+}
+
 // مفتاح تخزين محلي خاص بكل مستخدم
 function localKey() { return LOCAL_KEY + (currentUser ? ':' + currentUser.uid : ''); }
 function saveLocal() {
@@ -95,15 +116,11 @@ function saveLocal() {
 function loadLocal() {
   try {
     const raw = localStorage.getItem(localKey());
-    if (raw) {
-      const p = JSON.parse(raw);
-      state = Object.assign({ updatedAt: null, rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, p);
-      if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
-    }
+    if (raw) state = withDefaults(JSON.parse(raw));
   } catch (e) { /* تجاهل */ }
 }
 function resetState() {
-  state = { updatedAt: null, rate: DEFAULT_RATE, autoRate: true, rateInfo: null, units: [] };
+  state = withDefaults({ autoRate: true });
 }
 
 let syncTimer = null;
@@ -185,8 +202,7 @@ async function syncOnLoad() {
     const remoteTs = (remoteState && remoteState.updatedAt) || '';
 
     if (remoteState && Array.isArray(remoteState.units) && remoteTs >= localTs) {
-      state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
-      if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
+      state = withDefaults(remoteState);
       saveLocal();
       setSync('ok', 'مُزامَن سحابياً');
     } else if (state.units.length) {
@@ -262,17 +278,33 @@ function renderDashboard() {
     .filter(i => !i.paid && daysBetween(i.dueDate) >= 0)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const nextOne = upcoming[0];
+  const totalPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
+  const totalRemaining = state.units.reduce((s, u) => s + unitRemaining(u), 0);
   let html = '';
   if (nextOne) {
     const d = daysBetween(nextOne.dueDate);
     html += `
-      <div class="unit-card" style="border-inline-start:4px solid var(--brand)">
-        <div class="label" style="font-size:12.5px;color:var(--ink-soft)">القسط القادم</div>
-        <div style="font-size:24px;font-weight:800;color:var(--brand);margin:4px 0">${fmtEGP(nextOne.amount)}</div>
-        <div style="font-size:13px;color:var(--ink-soft)">${fmtSAR(nextOne.amount)} · ${escapeHtml(nextOne.unit.name)}</div>
+      <div class="unit-card next-card">
+        <div class="label" style="font-size:12.5px;opacity:.85">القسط القادم</div>
+        <div style="font-size:26px;font-weight:800;margin:4px 0">${fmtEGP(nextOne.amount)}</div>
+        <div style="font-size:13px;opacity:.9">${fmtSAR(nextOne.amount)} · ${fmtUSD(nextOne.amount)} · ${escapeHtml(nextOne.unit.name)}</div>
         <div style="font-size:13px;margin-top:6px">🗓️ ${fmtDate(nextOne.dueDate)} — ${d === 0 ? 'اليوم' : `بعد ${d} يوم`}</div>
       </div>`;
   }
+
+  // رسوم بيانية للوحة التحكم
+  html += `
+    <div class="dash-charts">
+      <div class="report-block">
+        <h3>المستحق شهرياً — ٦ أشهر</h3>
+        <div class="chart-scroll">${monthlyBarChart(6)}</div>
+      </div>
+      <div class="report-block">
+        <h3>نسبة السداد الإجمالية</h3>
+        ${donutChart(totalPaid, totalRemaining)}
+      </div>
+    </div>`;
+
   html += '<div class="units-list" style="margin-top:14px">';
   state.units.forEach(u => {
     const scheduled = unitScheduledTotal(u), paid = unitPaidTotal(u), remaining = unitRemaining(u);
@@ -354,6 +386,7 @@ function installmentRowHtml(u, i) {
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ ${fmtDate(i.dueDate)}${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
       </div>
       ${badge}
+      ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${u.id}" data-id="${i.id}" title="تأجيل">⏳</button>` : ''}
       <button class="icon-btn" data-act="del-inst" data-uid="${u.id}" data-id="${i.id}" title="حذف">✕</button>
     </div>`;
 }
@@ -439,14 +472,36 @@ function printReport() {
   const tSch = state.units.reduce((s, u) => s + unitScheduledTotal(u), 0);
   const tPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
   const tRem = state.units.reduce((s, u) => s + unitRemaining(u), 0);
+  const pctPaid = tSch > 0 ? Math.round(tPaid / tSch * 100) : 0;
+
+  // مؤشرات
+  const unpaid = allInstallments().filter(i => !i.paid);
+  const overdue = unpaid.filter(i => daysBetween(i.dueDate) < 0);
+  const overdueSum = overdue.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const next90 = unpaid.filter(i => { const d = daysBetween(i.dueDate); return d >= 0 && d <= 90; });
+  const next90Sum = next90.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const nextOne = unpaid.filter(i => daysBetween(i.dueDate) >= 0).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   let html = `<h1>تقرير الأقساط — أقساط</h1>
-    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · سعر الصرف: ١ ريال = ${state.rate} ج.م</div>
+    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · ١ ريال = ${state.rate} ج.م · ١ دولار = ${state.usdRate} ج.م</div>
+
+    <h2>المؤشرات</h2>
+    <div class="pr-kpis">
+      <div class="pr-kpi"><div class="k">نسبة السداد</div><div class="v">${pctPaid}%</div></div>
+      <div class="pr-kpi"><div class="k">عدد الوحدات</div><div class="v">${state.units.length}</div></div>
+      <div class="pr-kpi"><div class="k">أقساط متبقّية</div><div class="v">${unpaid.length}</div></div>
+      <div class="pr-kpi"><div class="k">أقساط متأخّرة</div><div class="v">${overdue.length}</div></div>
+    </div>
+    <div class="pr-bar"><span style="width:${pctPaid}%"></span></div>
     <table>
-      <tr class="pr-tot"><td>إجمالي مجدول</td><td class="num">${fmtEGP(tSch)}</td><td class="num">${fmtSAR(tSch)}</td></tr>
-      <tr class="pr-tot"><td>إجمالي مدفوع</td><td class="num">${fmtEGP(tPaid)}</td><td class="num">${fmtSAR(tPaid)}</td></tr>
-      <tr class="pr-tot"><td>إجمالي متبقٍّ</td><td class="num">${fmtEGP(tRem)}</td><td class="num">${fmtSAR(tRem)}</td></tr>
-    </table>`;
+      <tr><th>المؤشر</th><th class="num">ج.م</th><th class="num">﷼</th><th class="num">$</th></tr>
+      <tr class="pr-tot"><td>إجمالي مجدول</td><td class="num">${fmtEGP(tSch)}</td><td class="num">${fmtSAR(tSch)}</td><td class="num">${fmtUSD(tSch)}</td></tr>
+      <tr><td>إجمالي مدفوع</td><td class="num">${fmtEGP(tPaid)}</td><td class="num">${fmtSAR(tPaid)}</td><td class="num">${fmtUSD(tPaid)}</td></tr>
+      <tr class="pr-tot"><td>إجمالي متبقٍّ</td><td class="num">${fmtEGP(tRem)}</td><td class="num">${fmtSAR(tRem)}</td><td class="num">${fmtUSD(tRem)}</td></tr>
+      <tr><td>مستحق خلال ٩٠ يوماً (${next90.length})</td><td class="num">${fmtEGP(next90Sum)}</td><td class="num">${fmtSAR(next90Sum)}</td><td class="num">${fmtUSD(next90Sum)}</td></tr>
+      <tr><td>متأخّر (${overdue.length})</td><td class="num">${fmtEGP(overdueSum)}</td><td class="num">${fmtSAR(overdueSum)}</td><td class="num">${fmtUSD(overdueSum)}</td></tr>
+    </table>
+    ${nextOne ? `<div class="pr-sub">القسط القادم: ${fmtEGP(nextOne.amount)} — ${fmtDate(nextOne.dueDate)} (${escapeHtml(nextOne.unit.name)})</div>` : ''}`;
 
   state.units.forEach(u => {
     const rem = unitRemaining(u);
@@ -471,26 +526,113 @@ function printReport() {
   window.print();
 }
 
-function monthlyBarChart() {
-  // تجميع الأقساط غير المدفوعة على ١٢ شهراً من الشهر الحالي
+/* ==========================================================================
+   شاشة السداد / التسوية
+   ========================================================================== */
+let settleSelected = new Set();
+
+function settleResultHtml() {
+  const unpaid = allInstallments().filter(i => !i.paid);
+  const assetsEGP = (Number(state.assets.usd) || 0) * state.usdRate + (Number(state.assets.egp) || 0);
+  const selEGP = unpaid.filter(i => settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const remainEGP = assetsEGP - selEGP;
+  const shortfall = remainEGP < 0;
+  return `
+    <div class="sr-row"><span>إجمالي الأصول</span><b>${fmtEGP(assetsEGP)}</b></div>
+    <div class="sr-cur">${fmtSAR(assetsEGP)} · ${fmtUSD(assetsEGP)}</div>
+    <div class="sr-row"><span>الأقساط المختارة (${settleSelected.size})</span><b style="color:var(--danger)">− ${fmtEGP(selEGP)}</b></div>
+    <div class="sr-cur">${fmtSAR(selEGP)} · ${fmtUSD(selEGP)}</div>
+    <hr class="sep" />
+    <div class="sr-row big"><span>${shortfall ? 'العجز' : 'المتبقّي بعد السداد'}</span><b style="color:${shortfall ? 'var(--danger)' : 'var(--ok)'}">${fmtEGP(Math.abs(remainEGP))}</b></div>
+    <div class="sr-cur big">${fmtSAR(Math.abs(remainEGP))} · ${fmtUSD(Math.abs(remainEGP))}</div>
+    ${shortfall ? '<div class="sr-warn">⚠️ الأصول لا تكفي لسداد الأقساط المختارة</div>' : ''}`;
+}
+
+function renderSettle() {
+  const el = $('#view-settle');
+  const unpaid = allInstallments().filter(i => !i.paid)
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+  const validIds = new Set(unpaid.map(i => i.id));
+  [...settleSelected].forEach(id => { if (!validIds.has(id)) settleSelected.delete(id); });
+
+  const usd = Number(state.assets.usd) || 0, egp = Number(state.assets.egp) || 0;
+  const shortfall = (usd * state.usdRate + egp) - unpaid.filter(i => settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0) < 0;
+
+  const rowsHtml = unpaid.length ? unpaid.map(i => {
+    const on = settleSelected.has(i.id);
+    const over = daysBetween(i.dueDate) < 0;
+    return `
+      <div class="inst-row ${on ? 'sel' : ''}" data-act="settle-toggle" data-id="${i.id}">
+        <span class="inst-check ${on ? 'on' : ''}">${on ? '✓' : ''}</span>
+        <div class="inst-main">
+          <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</span></div>
+          <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}</div>
+        </div>
+      </div>`;
+  }).join('') : emptyState('لا أقساط غير مدفوعة', 'كل الأقساط مسدّدة 🎉', '✅');
+
+  el.innerHTML = `
+    <div class="report-block">
+      <h3>💰 أرصدة حساباتي المصرية</h3>
+      <div class="rsub">أدخل رصيد كل حساب، واختر الأقساط لتعرف المتبقّي بعد سدادها.</div>
+      <div class="row">
+        <label>حساب الدولار ($)
+          <input type="number" id="assetUsd" min="0" step="0.01" inputmode="decimal" value="${usd || ''}" placeholder="0" />
+        </label>
+        <label>حساب الجنيه (ج.م)
+          <input type="number" id="assetEgp" min="0" step="0.01" inputmode="decimal" value="${egp || ''}" placeholder="0" />
+        </label>
+      </div>
+      <div class="rate-note">أسعار اليوم: ١ دولار = ${state.usdRate} ج.م · ١ ريال = ${state.rate} ج.م
+        <button class="btn ghost small" data-act="settle-refresh" style="margin-inline-start:8px">⟳ تحديث</button></div>
+    </div>
+
+    <div class="settle-result ${shortfall ? 'short' : ''}" id="settleResult">${settleResultHtml()}</div>
+
+    <div class="report-block">
+      <div class="view-head" style="margin-bottom:8px">
+        <h3 style="margin:0">اختر الأقساط المراد سدادها</h3>
+        <button class="btn ghost small" data-act="settle-clear">إلغاء التحديد</button>
+      </div>
+      <div class="inst-list">${rowsHtml}</div>
+      ${settleSelected.size ? `<button class="btn primary" data-act="settle-pay" style="width:100%;margin-top:12px">✓ تحديد المختار كمدفوع (${settleSelected.size})</button>` : ''}
+    </div>`;
+
+  const uEl = $('#assetUsd'), eEl = $('#assetEgp');
+  if (uEl) uEl.addEventListener('input', () => { state.assets.usd = Number(uEl.value) || 0; persist(); $('#settleResult').innerHTML = settleResultHtml(); });
+  if (eEl) eEl.addEventListener('input', () => { state.assets.egp = Number(eEl.value) || 0; persist(); $('#settleResult').innerHTML = settleResultHtml(); });
+}
+
+function paySelected() {
+  if (!settleSelected.size) return;
+  if (!confirm(`تحديد ${settleSelected.size} قسط كمدفوع؟`)) return;
+  state.units.forEach(u => (u.installments || []).forEach(i => {
+    if (settleSelected.has(i.id)) { i.paid = true; i.paidDate = todayISO(); }
+  }));
+  settleSelected.clear();
+  persist(); renderAll();
+}
+
+function monthlyBarChart(months) {
+  const N = months || 12;
   const now = new Date();
   const buckets = [];
-  for (let k = 0; k < 12; k++) {
+  for (let k = 0; k < N; k++) {
     const d = new Date(now.getFullYear(), now.getMonth() + k, 1);
     buckets.push({ y: d.getFullYear(), m: d.getMonth(), sum: 0 });
   }
   allInstallments().filter(i => !i.paid).forEach(i => {
     const d = new Date(i.dueDate + 'T00:00:00');
-    // أي متأخّر يُضاف للشهر الأول
+    if (isNaN(d.getTime())) return;
     let idx = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
     if (idx < 0) idx = 0;
-    if (idx > 11) return;
+    if (idx > N - 1 || !buckets[idx]) return;
     buckets[idx].sum += Number(i.amount || 0);
   });
 
-  const W = 640, H = 240, padB = 46, padT = 20, padX = 12;
+  const W = N <= 6 ? 360 : 640, H = 240, padB = 46, padT = 20, padX = 12;
   const max = Math.max(1, ...buckets.map(b => b.sum));
-  const bw = (W - padX * 2) / 12;
+  const bw = (W - padX * 2) / N;
   const chartH = H - padB - padT;
 
   let bars = '', labels = '', grid = '';
@@ -636,34 +778,39 @@ function maybeShowBrowserNotif() {
    ========================================================================== */
 async function fetchAutoRate(manual) {
   const btn = $('#rateRefresh');
-  btn.classList.add('spin');
+  if (btn) btn.classList.add('spin');
   try {
-    let data = null;
+    // جلب أسعار الدولار كأساس نشتقّ منه سعري الريال والدولار مقابل الجنيه
+    let usdEgp = null, usdSar = null, source = '';
     try {
-      const res = await fetch(`${API}/rate`);
-      if (res.ok) data = await res.json();
-    } catch { /* نجرّب المزوّد العام مباشرة */ }
-    if (!data || !data.rate) {
-      // احتياطي: جلب مباشر من مزوّد عام يدعم CORS
-      const r = await fetch('https://open.er-api.com/v6/latest/SAR');
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
       const j = await r.json();
-      if (j && j.rates && j.rates.EGP) data = { rate: Number(j.rates.EGP), source: 'open.er-api.com', fetchedAt: nowISO() };
+      if (j && j.rates) { usdEgp = Number(j.rates.EGP); usdSar = Number(j.rates.SAR); source = 'open.er-api.com'; }
+    } catch { /* نجرّب دالة الخادم */ }
+    if (!usdEgp) {
+      try {
+        const res = await fetch(`${API}/rate`);
+        if (res.ok) { const d = await res.json(); if (d.rate > 0) { state.rate = Number(Number(d.rate).toFixed(4)); source = d.source || 'تلقائي'; } }
+      } catch { /* تجاهل */ }
     }
-    if (data && data.rate > 0) {
-      state.rate = Number(data.rate.toFixed(4));
-      state.rateInfo = { source: data.source, fetchedAt: data.fetchedAt || nowISO() };
-      $('#rateInput').value = state.rate;
+    if (usdEgp > 0) {
+      state.usdRate = Number(usdEgp.toFixed(4));
+      if (usdSar > 0) state.rate = Number((usdEgp / usdSar).toFixed(4)); // جنيه لكل ريال
+    }
+    if (usdEgp > 0 || source) {
+      state.rateInfo = { source, fetchedAt: nowISO() };
+      if ($('#rateInput')) $('#rateInput').value = state.rate;
       persist();
       renderAll();
       updateRateInfoUI();
-      if (manual) flashFooter(`تم تحديث السعر: ١ ريال = ${state.rate} ج.م`);
+      if (manual) flashFooter(`تم التحديث: ١ ريال = ${state.rate} ج.م · ١ دولار = ${state.usdRate} ج.م`);
     } else if (manual) {
       alert('تعذّر جلب سعر الصرف حالياً.');
     }
   } catch (e) {
     if (manual) alert('تعذّر جلب سعر الصرف: تحقّق من الاتصال.');
   } finally {
-    btn.classList.remove('spin');
+    if (btn) btn.classList.remove('spin');
   }
 }
 
@@ -697,6 +844,7 @@ function renderAll() {
   renderUnits();
   renderUpcoming();
   if (currentView === 'reports') renderReports();
+  if (currentView === 'settle') renderSettle();
   refreshBell();
   saveLocal();
 }
@@ -707,6 +855,7 @@ function renderAll() {
 let currentView = 'dashboard';
 let editingUnitId = null;
 let addInstUnitId = null;
+let postponeTarget = null; // { unitId, instId }
 
 function switchView(view) {
   currentView = view;
@@ -714,6 +863,26 @@ function switchView(view) {
   $$('.view').forEach(v => v.classList.add('hidden'));
   $('#view-' + view).classList.remove('hidden');
   if (view === 'reports') renderReports();
+  if (view === 'settle') renderSettle();
+}
+
+/* ---------- تأجيل القسط ---------- */
+function openPostpone(unitId, instId) {
+  const u = findUnit(unitId); if (!u) return;
+  const i = u.installments.find(x => x.id === instId); if (!i) return;
+  postponeTarget = { unitId, instId };
+  $('#postponeInfo').textContent = `القسط: ${fmtEGP(i.amount)} — الاستحقاق الحالي ${fmtDate(i.dueDate)}`;
+  $('#postponeForm').querySelector('[name=newDate]').value = i.dueDate;
+  $('#postponeModal').classList.remove('hidden');
+}
+function closePostpone() { $('#postponeModal').classList.add('hidden'); postponeTarget = null; }
+function savePostpone(newDate) {
+  if (!postponeTarget || !newDate) return;
+  const u = findUnit(postponeTarget.unitId); if (!u) return;
+  const i = u.installments.find(x => x.id === postponeTarget.instId); if (!i) return;
+  i.dueDate = newDate;
+  if (!/تأجيل/.test(i.label || '')) i.label = (i.label ? i.label + ' ' : '') + '(مؤجّل)';
+  closePostpone(); persist(); renderAll();
 }
 
 function openUnitModal(unit) {
@@ -964,12 +1133,26 @@ function bindEvents() {
       case 'del-unit': deleteUnit(id); break;
       case 'toggle-paid': togglePaid(uidAttr, id); break;
       case 'del-inst': deleteInstallment(uidAttr, id); break;
+      case 'postpone': openPostpone(uidAttr, id); break;
       case 'print': printReport(); break;
+      case 'settle-toggle': { settleSelected.has(id) ? settleSelected.delete(id) : settleSelected.add(id); renderSettle(); break; }
+      case 'settle-clear': settleSelected.clear(); renderSettle(); break;
+      case 'settle-pay': paySelected(); break;
+      case 'settle-refresh': fetchAutoRate(true); break;
     }
   });
 
+  // تأجيل القسط
+  $('#closePostponeModal').addEventListener('click', closePostpone);
+  $('#cancelPostpone').addEventListener('click', closePostpone);
+  $('#postponeModal').addEventListener('click', e => { if (e.target.id === 'postponeModal') closePostpone(); });
+  $('#postponeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    savePostpone(e.target.querySelector('[name=newDate]').value);
+  });
+
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); $('#notifPanel').classList.add('hidden'); }
+    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); $('#notifPanel').classList.add('hidden'); }
   });
 }
 
@@ -989,8 +1172,7 @@ function importData(e) {
       const parsed = JSON.parse(reader.result);
       if (!parsed || !Array.isArray(parsed.units)) throw new Error('صيغة غير صحيحة');
       if (!confirm('سيتم استبدال البيانات الحالية بالكامل. متابعة؟')) return;
-      state = Object.assign({ updatedAt: null, rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, parsed);
-      if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
+      state = withDefaults(parsed);
       $('#rateInput').value = state.rate;
       persist(); renderAll();
       alert('تم الاستيراد بنجاح.');

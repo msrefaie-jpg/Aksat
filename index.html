@@ -9,11 +9,13 @@
   <title>أقساط — إدارة الالتزامات المالية</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark">﷼</span>
+      <img src="icon-192.png" alt="أقساط" class="brand-logo" />
       <div>
         <h1>أقساط</h1>
         <p class="subtitle">متابعة الالتزامات المالية والأقساط العقارية</p>
@@ -44,6 +46,7 @@
       <button class="tab active" data-view="dashboard" role="tab">لوحة التحكم</button>
       <button class="tab" data-view="units" role="tab">الوحدات</button>
       <button class="tab" data-view="upcoming" role="tab">القادمة</button>
+      <button class="tab" data-view="settle" role="tab">السداد</button>
       <button class="tab" data-view="reports" role="tab">التقارير</button>
     </nav>
 
@@ -70,6 +73,8 @@
       </div>
       <div id="upcomingList" class="upcoming-list"></div>
     </section>
+
+    <section class="view hidden" id="view-settle"></section>
 
     <section class="view hidden" id="view-reports"></section>
   </main>
@@ -161,6 +166,26 @@
         <div class="modal-actions">
           <button type="button" class="btn ghost cancel-inst">إلغاء</button>
           <button type="submit" class="btn primary">إنشاء الجدول</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- نافذة تأجيل القسط -->
+  <div class="modal-overlay hidden" id="postponeModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3>تأجيل القسط</h3>
+        <button class="icon-btn" id="closePostponeModal" aria-label="إغلاق">✕</button>
+      </div>
+      <form id="postponeForm" class="form">
+        <p class="hint" id="postponeInfo"></p>
+        <label>تاريخ الاستحقاق الجديد *
+          <input type="date" name="newDate" required />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" id="cancelPostpone">إلغاء</button>
+          <button type="submit" class="btn primary">حفظ التأجيل</button>
         </div>
       </form>
     </div>

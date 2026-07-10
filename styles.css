@@ -66,6 +66,7 @@ body {
   display: grid; place-items: center;
   border-radius: 14px;
 }
+.brand-logo { width: 46px; height: 46px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
 .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
 .subtitle { font-size: 12.5px; opacity: .9; }
 
@@ -129,12 +130,21 @@ body {
   margin-bottom: 18px;
 }
 .stat {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
 }
+.stat::before {
+  content: ''; position: absolute; top: 0; inset-inline-start: 0;
+  width: 100%; height: 3px; background: var(--brand); opacity: .9;
+}
+.stat.alert::before { background: var(--danger); }
+.stat.warn-stat::before { background: var(--warn); }
 .stat .label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; }
 .stat .value { font-size: 21px; font-weight: 800; letter-spacing: -.5px; }
 .stat .value.egp { color: var(--brand); }
@@ -180,8 +190,9 @@ body {
   cursor: pointer; font-family: inherit;
   transition: .15s;
 }
-.btn.primary { background: var(--brand); color: #fff; }
+.btn.primary { background: var(--brand); color: #fff; box-shadow: 0 2px 8px rgba(15,118,110,.25); }
 .btn.primary:hover { background: var(--brand-dark); }
+.btn.primary:active { transform: scale(.97); }
 .btn.ghost { background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
 .btn.ghost:hover { background: var(--bg); }
 .btn.small { padding: 7px 12px; font-size: 13px; }
@@ -208,7 +219,9 @@ body {
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: var(--shadow);
+  transition: box-shadow .15s;
 }
+.unit-card:hover { box-shadow: 0 2px 6px rgba(16,42,47,.1), 0 8px 24px rgba(16,42,47,.08); }
 .unit-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .unit-title { font-size: 16.5px; font-weight: 700; }
 .unit-project { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
@@ -347,6 +360,55 @@ body {
   font-size: 12px;
 }
 .footer-note { color: var(--ink-soft); margin-inline-start: auto; }
+
+/* بطاقة القسط القادم (متدرّجة) */
+.next-card {
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark)) !important;
+  color: #fff !important; border: none !important;
+}
+.next-card .label { color: #fff; }
+
+/* رسوم لوحة التحكم */
+.dash-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.dash-charts .report-block { margin-bottom: 0; }
+@media (max-width: 620px) { .dash-charts { grid-template-columns: 1fr; } }
+
+/* شاشة السداد */
+.rate-note {
+  font-size: 12.5px; color: var(--ink-soft); margin-top: 12px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  background: var(--bg); padding: 9px 12px; border-radius: 10px;
+}
+.settle-result {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+  margin-bottom: 16px; border-inline-start: 5px solid var(--ok);
+}
+.settle-result.short { border-inline-start-color: var(--danger); }
+.sr-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; margin-top: 6px; }
+.sr-row b { font-size: 16px; font-weight: 800; }
+.sr-row.big { font-size: 15px; margin-top: 4px; }
+.sr-row.big b { font-size: 22px; }
+.sr-cur { font-size: 12px; color: var(--ink-soft); text-align: start; }
+.sr-cur.big { font-size: 13px; }
+.sr-warn { margin-top: 10px; background: var(--danger-soft); color: var(--danger); padding: 8px 10px; border-radius: 10px; font-size: 12.5px; font-weight: 600; }
+.inst-row.sel { background: var(--brand-soft); border-color: var(--brand); }
+.inst-row[data-act="settle-toggle"] { cursor: pointer; }
+
+/* تبويبات قابلة للتمرير أفقياً عند الضيق */
+.tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { white-space: nowrap; }
+
+/* مؤشرات التقرير المطبوع */
+@media print {
+  #printArea .pr-kpis { display: flex; gap: 8px; margin: 8px 0; }
+  #printArea .pr-kpi { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 6px; text-align: center; }
+  #printArea .pr-kpi .k { font-size: 10px; color: #555; }
+  #printArea .pr-kpi .v { font-size: 18px; font-weight: 800; color: #0f766e; }
+  #printArea .pr-bar { height: 10px; background: #eee; border-radius: 6px; overflow: hidden; margin: 4px 0 10px; }
+  #printArea .pr-bar > span { display: block; height: 100%; background: #0f766e; }
+}
 
 /* شاشة تسجيل الدخول */
 .login-overlay {
