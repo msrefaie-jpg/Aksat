@@ -652,7 +652,7 @@ function monthlyBarChart(months) {
     labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 18}" text-anchor="middle">${monthShort(b.y, b.m)}</text>`;
     if (k === 0 || b.m === 0) labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 32}" text-anchor="middle" style="opacity:.7">${b.y}</text>`;
   });
-  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img">${grid}${bars}${labels}</svg>`;
+  return `<svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">${grid}${bars}${labels}</svg>`;
 }
 
 function donutChart(paid, remaining) {
@@ -661,7 +661,7 @@ function donutChart(paid, remaining) {
   const R = 70, C = 2 * Math.PI * R, stroke = 26;
   const dash = C * pct;
   return `
-  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+  <div class="donut-wrap">
     <svg class="chart-svg" viewBox="0 0 180 180" width="180" height="180">
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--ok)" stroke-width="${stroke}"
@@ -878,6 +878,8 @@ function switchView(view) {
   $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   $$('.view').forEach(v => v.classList.add('hidden'));
   $('#view-' + view).classList.remove('hidden');
+  const sum = $('#summary');
+  if (sum) sum.style.display = view === 'dashboard' ? '' : 'none';
   if (view === 'reports') renderReports();
   if (view === 'settle') renderSettle();
   updateGreeting();
