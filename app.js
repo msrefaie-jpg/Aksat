@@ -732,9 +732,17 @@ function genCode() {
   return s.slice(0, 4) + '-' + s.slice(4, 8) + '-' + s.slice(8, 12) + '-' + s.slice(12, 16);
 }
 
+function adoptRemote(remoteState) {
+  state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
+  if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
+  saveLocal();
+}
+
 async function saveAccount() {
   const code = $('#accountCode').value.trim();
   if (code && code.length < 4) { alert('الرمز قصير جداً (٤ أحرف على الأقل).'); return; }
+  const prevAccount = account;
+  const isSwitch = !!prevAccount && !!code && code !== prevAccount; // التبديل من حساب لآخر
   account = code || null;
   if (account) localStorage.setItem(ACCOUNT_KEY, account);
   else localStorage.removeItem(ACCOUNT_KEY);
@@ -742,28 +750,34 @@ async function saveAccount() {
   await detectCloud();
 
   if (account && cloudAvailable) {
-    // إدخال رمز الحساب = «حمّل هذا الحساب»: نُفضّل بيانات السحابة إن وُجدت
     setSync('sync', 'جارٍ المزامنة…');
     try {
       const remote = await cloudPull();
       const remoteState = remote && remote.state;
       const remoteHasUnits = remoteState && Array.isArray(remoteState.units) && remoteState.units.length > 0;
       const localHasUnits = state.units.length > 0;
-      if (remoteHasUnits) {
-        let adopt = true;
-        if (localHasUnits) {
-          adopt = confirm('هذا الحساب يحتوي بيانات محفوظة سحابياً.\nموافق = تحميل بيانات الحساب (استبدال ما يظهر حالياً).\nإلغاء = رفع بياناتك الحالية بدلاً منها.');
-        }
-        if (adopt) {
-          state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
-          if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
-          saveLocal();
+
+      if (isSwitch) {
+        // التبديل بين حسابين: نُحمّل الحساب المطلوب دائماً، ولا نرفع بيانات الحساب السابق فوقه
+        if (remoteHasUnits) {
+          adoptRemote(remoteState);
           setSync('ok', 'مُزامَن سحابياً');
         } else {
-          await cloudPush(); // المستخدم اختار رفع بياناته المحلية
+          // الحساب المطلوب فارغ سحابياً — نعرضه فارغاً دون المساس به
+          state = { updatedAt: null, rate: state.rate, autoRate: state.autoRate, rateInfo: null, units: [] };
+          saveLocal();
+          setSync('warn', 'هذا الحساب فارغ سحابياً');
         }
+      } else if (remoteHasUnits) {
+        // أول تفعيل للمزامنة على حساب يحتوي بيانات سحابية
+        let adopt = true;
+        if (localHasUnits) {
+          adopt = confirm('هذا الحساب يحتوي بيانات محفوظة سحابياً.\nموافق = تحميل بيانات الحساب.\nإلغاء = إبقاء بياناتك الحالية ورفعها.');
+        }
+        if (adopt) { adoptRemote(remoteState); setSync('ok', 'مُزامَن سحابياً'); }
+        else await cloudPush();
       } else {
-        await cloudPush(); // السحابة فارغة → نرفع المحلي
+        await cloudPush(); // السحابة فارغة → نرفع المحلي لتعبئته
       }
     } catch (e) {
       setSync('err', 'تعذّرت المزامنة — محلي فقط');
