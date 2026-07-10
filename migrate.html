@@ -41,8 +41,8 @@
       <ol class="steps">
         <li>أدخل بريد وكلمة مرور <strong>أحد المستخدمَين</strong> كما في التطبيق القديم.</li>
         <li>اضغط «قراءة البيانات» لمعاينتها.</li>
-        <li>حمّل ملف الاستيراد، ثم افتح «أقساط» → «استيراد».</li>
-        <li>كرّر للمستخدم الثاني إن أردت (بكل حساب رمز حساب مختلف في أقساط).</li>
+        <li>اضغط «حفظ في حسابي بأقساط» — تُحفظ تحت نفس هذا الحساب.</li>
+        <li>كرّر للمستخدم الثاني، ثم افتح «أقساط» وسجّل الدخول بكل بريد لرؤية بياناته.</li>
       </ol>
 
       <label>البريد الإلكتروني</label>
@@ -58,13 +58,11 @@
       <div class="sub" id="summary"></div>
       <div id="tableWrap"></div>
 
-      <button class="primary" id="downloadBtn">⬇️ تحميل ملف الاستيراد (JSON)</button>
+      <button class="primary" id="saveCloudBtn">☁️ حفظ في حسابي بأقساط</button>
+      <div class="sub" style="margin:8px 0 0">يُحفظ في سحابة «أقساط» تحت نفس هذا الحساب. افتح «أقساط» وسجّل الدخول بنفس البريد لتظهر بياناتك.</div>
+      <div id="msg2" class="msg info hidden" style="margin-top:10px"></div>
 
-      <label style="margin-top:20px">حفظ مباشر في «أقساط» (اختياري)</label>
-      <div class="sub" style="margin:0 0 6px">أدخل «رمز حساب» ليُحفظ في سحابة أقساط مباشرةً (نفس الرمز الذي ستستخدمه في التطبيق).</div>
-      <input type="text" id="accountCode" placeholder="رمز الحساب (٤ أحرف فأكثر)" />
-      <button class="ghost" id="saveCloudBtn">☁️ حفظ في سحابة أقساط</button>
-      <div id="msg2" class="msg info hidden"></div>
+      <button class="ghost" id="downloadBtn" style="margin-top:16px">⬇️ تحميل ملف احتياطي (JSON)</button>
     </div>
   </div>
 
@@ -93,6 +91,7 @@
 
     let builtState = null;
     let emailUsed = '';
+    let fbUser = null;
 
     function toDateStr(v) {
       if (!v) return '';
@@ -148,6 +147,7 @@
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         const u = cred.user;
+        fbUser = u;
         emailUsed = email;
 
         // قراءة الأقساط
@@ -204,18 +204,17 @@
     });
 
     $('saveCloudBtn').addEventListener('click', async () => {
-      if (!builtState) return;
-      const code = $('accountCode').value.trim();
-      if (!code || code.length < 4) { show($('msg2'), 'err', 'أدخل رمز حساب (٤ أحرف فأكثر).'); return; }
+      if (!builtState || !fbUser) { show($('msg2'), 'err', 'سجّل الدخول واقرأ البيانات أولاً.'); return; }
       show($('msg2'), 'info', 'جارٍ الحفظ في سحابة أقساط…');
       try {
+        const token = await fbUser.getIdToken();
         const res = await fetch('/api/state', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'x-account-code': code },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify({ state: builtState }),
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
-        show($('msg2'), 'ok', `تم الحفظ في سحابة أقساط تحت الرمز «${code}». افتح «أقساط» وأدخل نفس الرمز في «الحساب والمزامنة».`);
+        show($('msg2'), 'ok', `تم الحفظ بنجاح في حساب «${emailUsed}». افتح «أقساط» وسجّل الدخول بنفس البريد لتظهر بياناتك.`);
       } catch (e) {
         show($('msg2'), 'err', 'تعذّر الحفظ السحابي: ' + (e.message || e) + '. يمكنك بدلاً من ذلك تحميل الملف واستيراده.');
       }

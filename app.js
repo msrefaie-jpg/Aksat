@@ -10,11 +10,20 @@
 'use strict';
 
 const LOCAL_KEY = 'aksat.state.v2';
-const ACCOUNT_KEY = 'aksat.account';
 const NOTIF_KEY = 'aksat.notifEnabled';
 const LASTNOTIF_KEY = 'aksat.lastNotifDate';
 const DEFAULT_RATE = 13.3;
 const API = '/api';
+
+// إعداد Firebase للمصادقة (قيَم عامة publishable)
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyC6WTj5rqg4qpbsxHcY1eO9yphOS282W0E',
+  authDomain: 'estatemanager-eecaa.firebaseapp.com',
+  projectId: 'estatemanager-eecaa',
+  storageBucket: 'estatemanager-eecaa.firebasestorage.app',
+  messagingSenderId: '459313113006',
+  appId: '1:459313113006:web:4b45bf439d8718b7914a3f',
+};
 
 /* ---------- الحالة ---------- */
 let state = {
@@ -25,7 +34,8 @@ let state = {
   units: [],           // [{ id, name, project, totalPrice, downPayment, notes, installments:[] }]
 };
 
-let account = null;      // رمز الحساب (مفتاح المزامنة)
+let fbAuth = null;       // Firebase Auth
+let currentUser = null;  // المستخدم المسجّل (Firebase)
 let cloudAvailable = false;
 let notifEnabled = false;
 
@@ -77,12 +87,14 @@ function escapeHtml(s) {
 /* ==========================================================================
    طبقة التخزين والمزامنة
    ========================================================================== */
+// مفتاح تخزين محلي خاص بكل مستخدم
+function localKey() { return LOCAL_KEY + (currentUser ? ':' + currentUser.uid : ''); }
 function saveLocal() {
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch (e) { /* تجاهل */ }
+  try { localStorage.setItem(localKey(), JSON.stringify(state)); } catch (e) { /* تجاهل */ }
 }
 function loadLocal() {
   try {
-    const raw = localStorage.getItem(LOCAL_KEY);
+    const raw = localStorage.getItem(localKey());
     if (raw) {
       const p = JSON.parse(raw);
       state = Object.assign({ updatedAt: null, rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, p);
@@ -90,11 +102,23 @@ function loadLocal() {
     }
   } catch (e) { /* تجاهل */ }
 }
+function resetState() {
+  state = { updatedAt: null, rate: DEFAULT_RATE, autoRate: true, rateInfo: null, units: [] };
+}
 
 let syncTimer = null;
 let pendingSync = false;
 
 function touch() { state.updatedAt = nowISO(); }
+
+/* ترويسة المصادقة عبر رمز Firebase */
+async function authHeaders() {
+  if (!currentUser) return null;
+  try {
+    const token = await currentUser.getIdToken();
+    return { Authorization: 'Bearer ' + token };
+  } catch { return null; }
+}
 
 /* حفظ محلي فوري + دفع مؤجّل للسحابة */
 function persist() {
@@ -103,7 +127,7 @@ function persist() {
   scheduleCloudPush();
 }
 function scheduleCloudPush() {
-  if (!account || !cloudAvailable) return;
+  if (!currentUser || !cloudAvailable) return;
   pendingSync = true;
   setSync('sync', 'جارٍ الحفظ…');
   clearTimeout(syncTimer);
@@ -111,11 +135,13 @@ function scheduleCloudPush() {
 }
 
 async function cloudPush() {
-  if (!account || !cloudAvailable) return;
+  if (!currentUser || !cloudAvailable) return;
   try {
+    const h = await authHeaders();
+    if (!h) throw new Error('no-token');
     const res = await fetch(`${API}/state`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-account-code': account },
+      headers: { 'Content-Type': 'application/json', ...h },
       body: JSON.stringify({ state }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
@@ -128,8 +154,10 @@ async function cloudPush() {
 }
 
 async function cloudPull() {
-  if (!account || !cloudAvailable) return null;
-  const res = await fetch(`${API}/state`, { headers: { 'x-account-code': account } });
+  if (!currentUser || !cloudAvailable) return null;
+  const h = await authHeaders();
+  if (!h) return null;
+  const res = await fetch(`${API}/state`, { headers: h });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
   return res.json(); // { state, updatedAt }
 }
@@ -145,8 +173,8 @@ async function detectCloud() {
 
 /* دمج بمبدأ «الأحدث يفوز» على مستوى المستند بأكمله */
 async function syncOnLoad() {
-  if (!account || !cloudAvailable) {
-    setSync(account ? 'warn' : 'warn', account ? 'الخادم غير متاح — محلي فقط' : 'غير مفعّل — محلي فقط');
+  if (!currentUser || !cloudAvailable) {
+    setSync('warn', 'الخادم غير متاح — محلي فقط');
     return;
   }
   setSync('sync', 'جارٍ المزامنة…');
@@ -157,15 +185,14 @@ async function syncOnLoad() {
     const remoteTs = (remoteState && remoteState.updatedAt) || '';
 
     if (remoteState && Array.isArray(remoteState.units) && remoteTs >= localTs) {
-      // السحابة أحدث (أو المحلي فارغ) → نعتمدها
-      const keepAuto = state.autoRate;
       state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
       if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
       saveLocal();
       setSync('ok', 'مُزامَن سحابياً');
-    } else {
-      // المحلي أحدث → ندفعه
+    } else if (state.units.length) {
       await cloudPush();
+    } else {
+      setSync('ok', 'مُزامَن سحابياً');
     }
   } catch (e) {
     setSync('err', 'تعذّرت المزامنة — محلي فقط');
@@ -377,6 +404,10 @@ function renderReports() {
   const totalRemaining = state.units.reduce((s, u) => s + unitRemaining(u), 0);
 
   el.innerHTML = `
+    <div class="view-head">
+      <h2 style="font-size:16px">التقارير</h2>
+      <button class="btn primary" data-act="print">🖨️ طباعة التقرير</button>
+    </div>
     <div class="summary" style="margin-bottom:16px">
       <div class="stat"><div class="label">إجمالي مجدول</div><div class="value">${fmtEGP(totalScheduled)}</div><div class="sub">${fmtSAR(totalScheduled)}</div></div>
       <div class="stat"><div class="label">إجمالي مدفوع</div><div class="value" style="color:var(--ok)">${fmtEGP(totalPaid)}</div><div class="sub">${fmtSAR(totalPaid)}</div></div>
@@ -399,6 +430,45 @@ function renderReports() {
       <h3>تفصيل الوحدات</h3>
       <div class="chart-scroll">${unitsTable()}</div>
     </div>`;
+}
+
+/* ---------- تقرير قابل للطباعة ---------- */
+function printReport() {
+  const today = new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  const who = currentUser ? (currentUser.email || '') : '';
+  const tSch = state.units.reduce((s, u) => s + unitScheduledTotal(u), 0);
+  const tPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
+  const tRem = state.units.reduce((s, u) => s + unitRemaining(u), 0);
+
+  let html = `<h1>تقرير الأقساط — أقساط</h1>
+    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · سعر الصرف: ١ ريال = ${state.rate} ج.م</div>
+    <table>
+      <tr class="pr-tot"><td>إجمالي مجدول</td><td class="num">${fmtEGP(tSch)}</td><td class="num">${fmtSAR(tSch)}</td></tr>
+      <tr class="pr-tot"><td>إجمالي مدفوع</td><td class="num">${fmtEGP(tPaid)}</td><td class="num">${fmtSAR(tPaid)}</td></tr>
+      <tr class="pr-tot"><td>إجمالي متبقٍّ</td><td class="num">${fmtEGP(tRem)}</td><td class="num">${fmtSAR(tRem)}</td></tr>
+    </table>`;
+
+  state.units.forEach(u => {
+    const rem = unitRemaining(u);
+    const insts = (u.installments || []).slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+    html += `<h2>${escapeHtml(u.name)}${u.project ? ' — ' + escapeHtml(u.project) : ''}</h2>
+      <div class="pr-sub">المتبقّي: ${fmtEGP(rem)} (${fmtSAR(rem)}) · عدد الأقساط: ${insts.length}</div>
+      <table>
+        <tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (ج.م)</th><th class="num">المبلغ (﷼)</th><th>الحالة</th></tr>
+        ${insts.map((i, k) => `<tr>
+          <td>${k + 1}</td>
+          <td>${escapeHtml(i.label || '')}</td>
+          <td>${fmtDate(i.dueDate)}</td>
+          <td class="num">${fmtEGP(i.amount)}</td>
+          <td class="num">${fmtSAR(i.amount)}</td>
+          <td>${i.paid ? 'مدفوع' : (daysBetween(i.dueDate) < 0 ? 'متأخّر' : 'مستحق')}</td>
+        </tr>`).join('')}
+      </table>`;
+  });
+
+  if (!state.units.length) html += '<p>لا توجد بيانات.</p>';
+  $('#printArea').innerHTML = html;
+  window.print();
 }
 
 function monthlyBarChart() {
@@ -532,11 +602,11 @@ function toggleNotifPanel() {
   p.classList.remove('hidden');
 }
 
-async function enableBrowserNotifications() {
-  if (!('Notification' in window)) { alert('متصفحك لا يدعم الإشعارات.'); return false; }
+async function enableBrowserNotifications(silent) {
+  if (!('Notification' in window)) { if (!silent) alert('متصفحك لا يدعم الإشعارات.'); return false; }
   let perm = Notification.permission;
-  if (perm === 'default') perm = await Notification.requestPermission();
-  if (perm !== 'granted') { alert('لم يتم منح إذن الإشعارات.'); return false; }
+  if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch { return false; } }
+  if (perm !== 'granted') { if (!silent) alert('لم يتم منح إذن الإشعارات.'); return false; }
   return true;
 }
 
@@ -713,82 +783,68 @@ function deleteUnit(id) {
 }
 
 /* ==========================================================================
-   الحساب والمزامنة (واجهة)
+   المصادقة (Firebase) والمزامنة
    ========================================================================== */
 function openAccountModal() {
-  $('#accountCode').value = account || '';
+  $('#accountUserLine').textContent = currentUser ? `مسجّل الدخول: ${currentUser.email || currentUser.uid}` : 'غير مسجّل';
   $('#autoRateToggle').checked = !!state.autoRate;
   $('#notifToggle').checked = notifEnabled;
   $('#accountModal').classList.remove('hidden');
 }
 function closeAccountModal() { $('#accountModal').classList.add('hidden'); }
 
-function genCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s = '';
-  const arr = new Uint32Array(16);
-  (window.crypto || {}).getRandomValues ? crypto.getRandomValues(arr) : arr.forEach((_, i) => arr[i] = Math.floor(Math.random() * 1e9));
-  for (let i = 0; i < 16; i++) s += chars[arr[i] % chars.length];
-  return s.slice(0, 4) + '-' + s.slice(4, 8) + '-' + s.slice(8, 12) + '-' + s.slice(12, 16);
-}
-
-function adoptRemote(remoteState) {
-  state = Object.assign({ rate: DEFAULT_RATE, autoRate: false, rateInfo: null, units: [] }, remoteState);
-  if (!state.rate || state.rate <= 0) state.rate = DEFAULT_RATE;
-  saveLocal();
-}
-
-async function saveAccount() {
-  const code = $('#accountCode').value.trim();
-  if (code && code.length < 4) { alert('الرمز قصير جداً (٤ أحرف على الأقل).'); return; }
-  const prevAccount = account;
-  const isSwitch = !!prevAccount && !!code && code !== prevAccount; // التبديل من حساب لآخر
-  account = code || null;
-  if (account) localStorage.setItem(ACCOUNT_KEY, account);
-  else localStorage.removeItem(ACCOUNT_KEY);
-  closeAccountModal();
-  await detectCloud();
-
-  if (account && cloudAvailable) {
-    setSync('sync', 'جارٍ المزامنة…');
-    try {
-      const remote = await cloudPull();
-      const remoteState = remote && remote.state;
-      const remoteHasUnits = remoteState && Array.isArray(remoteState.units) && remoteState.units.length > 0;
-      const localHasUnits = state.units.length > 0;
-
-      if (isSwitch) {
-        // التبديل بين حسابين: نُحمّل الحساب المطلوب دائماً، ولا نرفع بيانات الحساب السابق فوقه
-        if (remoteHasUnits) {
-          adoptRemote(remoteState);
-          setSync('ok', 'مُزامَن سحابياً');
-        } else {
-          // الحساب المطلوب فارغ سحابياً — نعرضه فارغاً دون المساس به
-          state = { updatedAt: null, rate: state.rate, autoRate: state.autoRate, rateInfo: null, units: [] };
-          saveLocal();
-          setSync('warn', 'هذا الحساب فارغ سحابياً');
-        }
-      } else if (remoteHasUnits) {
-        // أول تفعيل للمزامنة على حساب يحتوي بيانات سحابية
-        let adopt = true;
-        if (localHasUnits) {
-          adopt = confirm('هذا الحساب يحتوي بيانات محفوظة سحابياً.\nموافق = تحميل بيانات الحساب.\nإلغاء = إبقاء بياناتك الحالية ورفعها.');
-        }
-        if (adopt) { adoptRemote(remoteState); setSync('ok', 'مُزامَن سحابياً'); }
-        else await cloudPush();
-      } else {
-        await cloudPush(); // السحابة فارغة → نرفع المحلي لتعبئته
-      }
-    } catch (e) {
-      setSync('err', 'تعذّرت المزامنة — محلي فقط');
-    }
-  } else if (!account) {
-    setSync('warn', cloudAvailable ? 'المزامنة غير مفعّلة' : 'محلي فقط');
+async function doLogin(email, password) {
+  const msg = $('#loginMsg');
+  const btn = $('#loginBtn');
+  btn.disabled = true;
+  msg.className = 'msg info'; msg.textContent = 'جارٍ تسجيل الدخول…'; msg.classList.remove('hidden');
+  try {
+    await fbAuth.signInWithEmailAndPassword(email, password);
+    // تُكمل onAuthStateChanged بقية العمل
+    msg.classList.add('hidden');
+  } catch (e) {
+    let m = e.message || String(e);
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/i.test(m)) m = 'بريد أو كلمة مرور غير صحيحة.';
+    else if (/too-many-requests/i.test(m)) m = 'محاولات كثيرة — انتظر قليلاً.';
+    else if (/network/i.test(m)) m = 'تعذّر الاتصال بالإنترنت.';
+    msg.className = 'msg err'; msg.textContent = m; msg.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
   }
+}
+
+async function doLogout() {
+  try { await fbAuth.signOut(); } catch (e) { /* تجاهل */ }
+  closeAccountModal();
+}
+
+/* عند تغيّر حالة الدخول */
+async function onAuthChanged(user) {
+  currentUser = user || null;
+  if (!currentUser) {
+    document.body.classList.remove('authed');
+    resetState();
+    return;
+  }
+  // مستخدم مسجّل: حمّل بياناته المحلية ثم السحابية
+  document.body.classList.add('authed');
+  resetState();
+  loadLocal();
+  $('#rateInput').value = state.rate;
+  renderAll();
+
+  await detectCloud();
+  await syncOnLoad();
+
+  // فعّل سعر الصرف التلقائي مرة واحدة لكل حساب (يُحفظ للحساب)
+  if (!state._prefsInit) { state.autoRate = true; state._prefsInit = true; persist(); }
 
   $('#rateInput').value = state.rate;
   renderAll();
+  updateRateInfoUI();
+
   if (state.autoRate) fetchAutoRate(false);
+  maybeShowBrowserNotif();
 }
 
 /* ==========================================================================
@@ -861,12 +917,25 @@ function bindEvents() {
     if (!p.classList.contains('hidden') && !p.contains(e.target) && e.target.id !== 'bellBtn' && !$('#bellBtn').contains(e.target)) p.classList.add('hidden');
   });
 
+  // تسجيل الدخول والخروج
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('#loginEmail').value.trim();
+    const password = $('#loginPassword').value;
+    if (!email || !password) return;
+    await doLogin(email, password);
+    // اطلب إذن الإشعارات بعد الدخول (استجابةً لضغطة المستخدم)
+    if (!localStorage.getItem(NOTIF_KEY)) {
+      const ok = await enableBrowserNotifications(true);
+      notifEnabled = ok; localStorage.setItem(NOTIF_KEY, ok ? '1' : '0');
+    }
+  });
+  $('#logoutBtn').addEventListener('click', doLogout);
+
   // الحساب
   $('#accountBtn').addEventListener('click', openAccountModal);
   $('#closeAccountModal').addEventListener('click', closeAccountModal);
   $('#accountModal').addEventListener('click', e => { if (e.target.id === 'accountModal') closeAccountModal(); });
-  $('#genCodeBtn').addEventListener('click', () => { $('#accountCode').value = genCode(); });
-  $('#saveAccountBtn').addEventListener('click', saveAccount);
 
   $('#autoRateToggle').addEventListener('change', e => {
     state.autoRate = e.target.checked; persist();
@@ -895,6 +964,7 @@ function bindEvents() {
       case 'del-unit': deleteUnit(id); break;
       case 'toggle-paid': togglePaid(uidAttr, id); break;
       case 'del-inst': deleteInstallment(uidAttr, id); break;
+      case 'print': printReport(); break;
     }
   });
 
@@ -932,46 +1002,28 @@ function importData(e) {
 /* ==========================================================================
    بيانات تجريبية عند أول استخدام (تظهر فقط إن لم توجد بيانات محلية ولا سحابية)
    ========================================================================== */
-function seedIfEmpty() {
-  if (state.units.length) return;
-  const start = todayISO();
-  const unit = {
-    id: uid(), name: 'شقة تجريبية — عدّلها أو احذفها', project: 'مثال توضيحي',
-    totalPrice: 2000000, downPayment: 400000, notes: 'وحدة تجريبية لتوضيح الاستخدام.',
-    installments: [], _open: true,
-  };
-  for (let k = 0; k < 6; k++) {
-    unit.installments.push({ id: uid(), amount: 50000, dueDate: addMonths(start, k * 3 - 3), label: `قسط ${k + 1} من 6`, paid: k === 0, paidDate: k === 0 ? start : null });
-  }
-  state.units.push(unit);
-}
-
 /* ---------- الإقلاع ---------- */
-async function init() {
-  loadLocal();
-  account = localStorage.getItem(ACCOUNT_KEY) || null;
+function init() {
   notifEnabled = localStorage.getItem(NOTIF_KEY) === '1';
   bindEvents();
   switchView('dashboard');
-  updateRateInfoUI();
   renderAll();
 
-  // اكتشاف السحابة والمزامنة
-  await detectCloud();
-  if (account && cloudAvailable) {
-    await syncOnLoad();
-  } else if (!account) {
-    // لا رمز حساب: نعمل محلياً، ونضيف بيانات تجريبية للتوضيح
-    if (!state.units.length) { seedIfEmpty(); persist(); }
-    setSync('warn', cloudAvailable ? 'المزامنة غير مفعّلة' : 'محلي فقط');
-  } else {
-    setSync('warn', 'الخادم غير متاح — محلي فقط');
+  // تهيئة Firebase للمصادقة
+  if (typeof firebase === 'undefined' || !firebase.auth) {
+    $('#loginMsg').className = 'msg err';
+    $('#loginMsg').textContent = 'تعذّر تحميل نظام الدخول — تحقّق من الاتصال بالإنترنت.';
+    $('#loginMsg').classList.remove('hidden');
+    return;
   }
-  renderAll();
-
-  // سعر الصرف التلقائي
-  if (state.autoRate) fetchAutoRate(false);
-  // تنبيه المتصفح اليومي
-  maybeShowBrowserNotif();
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth = firebase.auth();
+    fbAuth.onAuthStateChanged(onAuthChanged);
+  } catch (e) {
+    $('#loginMsg').className = 'msg err';
+    $('#loginMsg').textContent = 'خطأ في تهيئة الدخول: ' + (e.message || e);
+    $('#loginMsg').classList.remove('hidden');
+  }
 }
 document.addEventListener('DOMContentLoaded', init);

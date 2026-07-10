@@ -174,17 +174,8 @@
         <button class="icon-btn" id="closeAccountModal" aria-label="إغلاق">✕</button>
       </div>
       <div class="form">
-        <p class="hint" id="accountHint">
-          «رمز الحساب» هو مفتاحك السري للمزامنة. أدخل نفس الرمز على كل أجهزتك لتتزامن بياناتك.
-          احتفظ به في مكان آمن — من يعرفه يمكنه رؤية بياناتك.
-        </p>
-        <label>رمز الحساب
-          <input type="text" id="accountCode" autocomplete="off" spellcheck="false" placeholder="رمز طويل يصعب تخمينه" />
-        </label>
-        <div class="modal-actions" style="justify-content:space-between">
-          <button type="button" class="btn ghost small" id="genCodeBtn">توليد رمز عشوائي</button>
-          <button type="button" class="btn primary" id="saveAccountBtn">حفظ ومزامنة</button>
-        </div>
+        <p class="hint" id="accountUserLine">مسجّل الدخول.</p>
+        <button type="button" class="btn ghost" id="logoutBtn">تسجيل الخروج</button>
         <hr class="sep" />
         <label class="switch-row">
           <span>تحديث سعر الصرف تلقائياً من الإنترنت</span>
@@ -207,10 +198,35 @@
   <!-- لوحة التنبيهات -->
   <div class="notif-panel hidden" id="notifPanel"></div>
 
+  <!-- منطقة الطباعة (تُملأ عند الطباعة) -->
+  <div id="printArea"></div>
+
   <footer class="app-footer">
     <span class="footer-note" id="footerNote">بياناتك تُحفظ سحابياً ومحلياً</span>
   </footer>
 
+  <!-- شاشة تسجيل الدخول -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-brand"><span class="brand-mark">﷼</span><span>أقساط</span></div>
+      <p class="login-sub">سجّل الدخول بحسابك لعرض أقساطك ومزامنتها</p>
+      <form id="loginForm" class="form" style="padding:0">
+        <label>البريد الإلكتروني
+          <input type="email" id="loginEmail" autocomplete="username" required placeholder="you@example.com" />
+        </label>
+        <label>كلمة المرور
+          <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="••••••••" />
+        </label>
+        <button type="submit" class="btn primary" id="loginBtn" style="width:100%;margin-top:6px">دخول</button>
+      </form>
+      <div id="loginMsg" class="msg hidden" style="margin-top:12px"></div>
+      <p class="login-note">استخدم نفس بريد وكلمة مرور حسابك.</p>
+    </div>
+  </div>
+
+  <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

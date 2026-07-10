@@ -348,6 +348,44 @@ body {
 }
 .footer-note { color: var(--ink-soft); margin-inline-start: auto; }
 
+/* شاشة تسجيل الدخول */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  display: grid; place-items: center; padding: 20px;
+}
+body.authed .login-overlay { display: none; }
+.login-card {
+  background: var(--card); border-radius: 20px;
+  padding: 26px 22px; width: 100%; max-width: 380px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.login-brand { display: flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 800; color: var(--brand); justify-content: center; }
+.login-brand .brand-mark { width: 46px; height: 46px; font-size: 26px; background: var(--brand-soft); }
+.login-sub { text-align: center; color: var(--ink-soft); font-size: 13.5px; margin: 6px 0 18px; }
+.login-note { text-align: center; color: var(--ink-soft); font-size: 12px; margin-top: 14px; }
+.msg { padding: 11px; border-radius: 10px; font-size: 13px; }
+.msg.err { background: var(--danger-soft); color: var(--danger); }
+.msg.ok { background: var(--ok-soft); color: var(--ok); }
+.msg.info { background: var(--brand-soft); color: var(--brand-dark); }
+
+/* منطقة الطباعة */
+#printArea { display: none; }
+
+@media print {
+  body { padding: 0; background: #fff; }
+  .app-header, .sync-bar, .tabs, .view, .app-footer, .notif-panel, .modal-overlay, .login-overlay, .summary { display: none !important; }
+  #printArea { display: block !important; padding: 10px; color: #000; }
+  #printArea h1 { font-size: 20px; margin-bottom: 2px; }
+  #printArea h2 { font-size: 15px; margin: 16px 0 6px; border-bottom: 2px solid #0f766e; padding-bottom: 3px; color: #0f766e; }
+  #printArea table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 8px; }
+  #printArea th, #printArea td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; }
+  #printArea th { background: #f0f0f0; }
+  #printArea .pr-sub { color: #555; font-size: 12px; margin-bottom: 10px; }
+  #printArea .pr-tot { font-weight: 800; background: #eafaf7; }
+  #printArea .num { text-align: end; }
+}
+
 /* مبدّلات ومقاطع في نافذة الحساب */
 .switch-row { display: flex; align-items: center; justify-content: space-between; flex-direction: row !important; font-weight: 600; color: var(--ink); }
 .switch-row input { width: auto !important; }
