@@ -170,11 +170,11 @@
         const instCount = installments.length;
         const paidCount = builtState.units.reduce((s, un) => s + un.installments.filter(i => i.paid).length, 0);
         const total = builtState.units.reduce((s, un) => s + un.installments.reduce((x, i) => x + i.amount, 0), 0);
-        $('summary').textContent = `${unitCount} وحدة · ${instCount} قسط (${paidCount} مدفوع) · الإجمالي ${Math.round(total).toLocaleString('ar-EG')} ج.م · سعر الصرف ${builtState.rate}`;
+        $('summary').textContent = `${unitCount} وحدة · ${instCount} قسط (${paidCount} مدفوع) · الإجمالي ${Math.round(total).toLocaleString('en-US')} E£ · سعر الصرف ${builtState.rate}`;
 
         const rows = builtState.units.map(un => {
           const rem = un.installments.filter(i => !i.paid).reduce((x, i) => x + i.amount, 0);
-          return `<tr><td>${un.name}</td><td class="n">${un.installments.length}</td><td class="n">${Math.round(rem).toLocaleString('ar-EG')} ج.م</td></tr>`;
+          return `<tr><td>${un.name}</td><td class="n">${un.installments.length}</td><td class="n">${Math.round(rem).toLocaleString('en-US')} E£</td></tr>`;
         }).join('');
         $('tableWrap').innerHTML = `<table><thead><tr><th>الوحدة</th><th style="text-align:end">أقساط</th><th style="text-align:end">المتبقّي</th></tr></thead><tbody>${rows}</tbody></table>`;
 

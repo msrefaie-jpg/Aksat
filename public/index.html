@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -22,9 +22,9 @@
       <div>
         <h1>أقساط</h1>
         <div class="fx-line" id="fxLine" title="تحديث سعر الصرف">
-          <span>$1 = <b id="fxUsd">50</b> ج.م</span>
+          <span>$1 = <b id="fxUsd">50</b> E£</span>
           <span class="sep">·</span>
-          <span>﷼1 = <b id="fxSar">13.3</b> ج.م</span>
+          <span>﷼1 = <b id="fxSar">13.3</b> E£</span>
           <span class="spin-ic">⟳</span>
         </div>
       </div>
@@ -40,7 +40,7 @@
 
   <div class="sync-bar" id="syncBar">
     <span id="syncStatus">…</span>
-    <button class="link-btn" id="accountBtn">الحساب والمزامنة</button>
+    <button class="link-btn" id="accountBtn">الإعدادات</button>
   </div>
 
   <main class="container">
@@ -108,6 +108,10 @@
         <button class="icon-btn" id="closeUnitModal" aria-label="إغلاق">✕</button>
       </div>
       <form id="unitForm" class="form">
+        <div>
+          <label style="margin-bottom:6px">النوع</label>
+          <div class="type-picker" id="unitTypePicker"></div>
+        </div>
         <label>اسم الوحدة *
           <input type="text" name="name" required placeholder="مثال: شقة الرحاب — عمارة ٥" />
         </label>
@@ -214,14 +218,28 @@
 
   <!-- نافذة الحساب والمزامنة -->
   <div class="modal-overlay hidden" id="accountModal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal settings-modal" role="dialog" aria-modal="true">
       <div class="modal-head">
-        <h3>الحساب والمزامنة</h3>
+        <h3>الإعدادات</h3>
         <button class="icon-btn" id="closeAccountModal" aria-label="إغلاق">✕</button>
       </div>
       <div class="form">
         <p class="hint" id="accountUserLine">مسجّل الدخول.</p>
-        <button type="button" class="btn ghost" id="logoutBtn">تسجيل الخروج</button>
+
+        <div class="acct-title">الملف الشخصي</div>
+        <label>الاسم
+          <div class="share-row">
+            <input type="text" id="profileName" placeholder="اسمك" autocomplete="name" />
+            <button type="button" class="btn primary" id="saveNameBtn">حفظ</button>
+          </div>
+        </label>
+        <label>كلمة مرور جديدة
+          <div class="share-row">
+            <input type="password" id="newPassword" placeholder="٦ أحرف فأكثر" autocomplete="new-password" />
+            <button type="button" class="btn primary" id="changePwBtn">تغيير</button>
+          </div>
+        </label>
+        <div id="profileMsg" class="msg hidden"></div>
 
         <hr class="sep" />
         <div class="acct-title">المحافظ</div>
@@ -244,6 +262,7 @@
         <div id="shareMsg" class="msg hidden" style="margin-top:8px"></div>
 
         <hr class="sep" />
+        <div class="acct-title">إعدادات التطبيق</div>
         <label class="switch-row">
           <span>تحديث سعر الصرف تلقائياً من الإنترنت</span>
           <input type="checkbox" id="autoRateToggle" />
@@ -252,12 +271,21 @@
           <span>تنبيهات المتصفح للأقساط المستحقة</span>
           <input type="checkbox" id="notifToggle" />
         </label>
+        <label class="switch-row">
+          <span>الوضع الداكن</span>
+          <input type="checkbox" id="darkToggle" />
+        </label>
+
         <hr class="sep" />
+        <div class="acct-title">البيانات</div>
         <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn ghost small" id="exportBtn2">تصدير نسخة احتياطية</button>
           <button type="button" class="btn ghost small" id="importBtn2">استيراد</button>
           <input type="file" id="importFile" accept="application/json" hidden />
         </div>
+
+        <hr class="sep" />
+        <button type="button" class="btn danger" id="logoutBtn" style="width:100%">تسجيل الخروج</button>
       </div>
     </div>
   </div>
@@ -304,6 +332,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

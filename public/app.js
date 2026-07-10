@@ -52,16 +52,35 @@ const todayISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-function fmtEGP(n) {
-  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(Math.round(n || 0)) + ' ج.م';
+// تصنيفات الوحدات (قابلة للتوسعة بتصنيفات مخصّصة)
+const UNIT_TYPES = [
+  { key: 'land', icon: '🏞️', label: 'قطعة أرض' },
+  { key: 'office', icon: '🏢', label: 'مكتب' },
+  { key: 'shop', icon: '🏪', label: 'محل تجاري' },
+  { key: 'apartment', icon: '🏠', label: 'شقة سكنية' },
+  { key: 'villa', icon: '🏡', label: 'فيلا' },
+  { key: 'car', icon: '🚗', label: 'سيارة' },
+  { key: 'other', icon: '📦', label: 'أخرى' },
+];
+function allTypes() { return UNIT_TYPES.concat(state.customTypes || []); }
+function unitType(u) { return allTypes().find(t => t.key === (u && u.type)) || { icon: '🏠', label: '' }; }
+
+// أرقام لاتينية (إنجليزية) موحّدة + رموز العملات الرسمية
+const NF = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const SYM = { EGP: 'E£', SAR: '﷼', USD: '$' };
+function fmtEGP(n) { return NF.format(Math.round(n || 0)) + ' ' + SYM.EGP; }
+function fmtSAR(n) { return NF.format(Math.round((n || 0) / state.rate)) + ' ' + SYM.SAR; }
+function fmtUSD(n) { return NF.format(Math.round((n || 0) / state.usdRate)) + ' ' + SYM.USD; }
+// تحويل مبلغ بعملة ما إلى جنيه مصري
+function toEGP(amount, cur) {
+  amount = Number(amount) || 0;
+  if (cur === 'SAR') return amount * state.rate;
+  if (cur === 'USD') return amount * state.usdRate;
+  return amount;
 }
-function fmtSAR(n) {
-  const sar = (n || 0) / state.rate;
-  return '﷼ ' + new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 }).format(Math.round(sar));
-}
-function fmtUSD(n) {
-  const usd = (n || 0) / state.usdRate;
-  return '$' + new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(usd));
+function fmtCur(amount, cur) {
+  const a = Math.round(Number(amount) || 0);
+  return NF.format(a) + ' ' + (SYM[cur] || cur);
 }
 function fmtCompact(n) {
   n = Math.round(n || 0);
@@ -72,15 +91,15 @@ function fmtCompact(n) {
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
-  return new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
 }
 function monthKey(iso) {
   const d = new Date(iso + 'T00:00:00');
-  return new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(d);
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { month: 'long', year: 'numeric' }).format(d);
 }
 function monthShort(y, m) {
   const d = new Date(y, m, 1);
-  return new Intl.DateTimeFormat('ar-EG', { month: 'short' }).format(d);
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { month: 'short' }).format(d);
 }
 function daysBetween(iso) {
   const t = new Date(todayISO() + 'T00:00:00');
@@ -102,9 +121,16 @@ function withDefaults(obj) {
   );
   if (!s.rate || s.rate <= 0) s.rate = DEFAULT_RATE;
   if (!s.usdRate || s.usdRate <= 0) s.usdRate = DEFAULT_USD_RATE;
-  if (!s.assets || typeof s.assets !== 'object') s.assets = { usd: 0, egp: 0 };
-  s.assets.usd = Number(s.assets.usd) || 0;
-  s.assets.egp = Number(s.assets.egp) || 0;
+  // ترحيل الأرصدة القديمة {usd,egp} إلى قائمة حسابات
+  if (!Array.isArray(s.accounts)) {
+    s.accounts = [];
+    const a = s.assets || {};
+    if (Number(a.usd)) s.accounts.push({ id: uid(), name: 'حساب الدولار', amount: Number(a.usd), currency: 'USD' });
+    if (Number(a.egp)) s.accounts.push({ id: uid(), name: 'حساب الجنيه', amount: Number(a.egp), currency: 'EGP' });
+  }
+  s.accounts = s.accounts.map(x => ({ id: x.id || uid(), name: x.name || 'حساب', amount: Number(x.amount) || 0, currency: ['EGP', 'SAR', 'USD'].includes(x.currency) ? x.currency : 'EGP' }));
+  delete s.assets;
+  if (!Array.isArray(s.customTypes)) s.customTypes = [];
   return s;
 }
 
@@ -333,7 +359,7 @@ function renderDashboard() {
     const nextUnpaid = (u.installments || []).filter(i => !i.paid).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
     html += `
       <div class="unit-card">
-        <div class="unit-title">${escapeHtml(u.name)}</div>
+        <div class="unit-title">${unitType(u).icon} ${escapeHtml(u.name)}</div>
         ${u.project ? `<div class="unit-project">${escapeHtml(u.project)}</div>` : ''}
         <div class="progress"><span style="width:${pct}%"></span></div>
         <div class="progress-meta"><span>مدفوع ${pct}%</span><span>متبقٍّ ${fmtEGP(remaining)}</span></div>
@@ -365,8 +391,8 @@ function unitCardHtml(u) {
   <div class="unit-card" data-unit="${u.id}">
     <div class="unit-top">
       <div>
-        <div class="unit-title">${escapeHtml(u.name)}</div>
-        ${u.project ? `<div class="unit-project">${escapeHtml(u.project)}</div>` : ''}
+        <div class="unit-title">${unitType(u).icon} ${escapeHtml(u.name)}</div>
+        <div class="unit-project">${unitType(u).label}${u.project ? ' · ' + escapeHtml(u.project) : ''}</div>
       </div>
       <div class="unit-actions">
         <button class="icon-btn" data-act="edit-unit" data-id="${u.id}" title="تعديل">✎</button>
@@ -421,7 +447,17 @@ function renderUpcoming() {
   if (!list.length) { wrap.innerHTML = emptyState('لا توجد أقساط', 'لا أقساط مستحقة ضمن هذه الفترة.', '✅'); return; }
   const groups = {};
   list.forEach(i => { (groups[monthKey(i.dueDate)] ||= []).push(i); });
-  wrap.innerHTML = Object.entries(groups).map(([month, items]) => {
+
+  const grand = list.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const monthsCount = Object.keys(groups).length;
+  const summaryCard = `
+    <div class="settle-result" style="border-inline-start-color:var(--brand);margin-bottom:14px">
+      <div class="sr-row big"><span>إجمالي الأقساط المعروضة</span><b>${fmtEGP(grand)}</b></div>
+      <div class="sr-cur big">${fmtSAR(grand)} · ${fmtUSD(grand)}</div>
+      <div class="sr-row" style="margin-top:8px"><span>${list.length} قسط · ${monthsCount} شهر</span><span></span></div>
+    </div>`;
+
+  wrap.innerHTML = summaryCard + Object.entries(groups).map(([month, items]) => {
     const total = items.reduce((s, i) => s + Number(i.amount || 0), 0);
     return `
       <div class="month-group">
@@ -488,7 +524,7 @@ function renderReports() {
 
 /* ---------- تقرير قابل للطباعة ---------- */
 function printReport() {
-  const today = new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  const today = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
   const who = currentUser ? (currentUser.email || '') : '';
   const tSch = state.units.reduce((s, u) => s + unitScheduledTotal(u), 0);
   const tPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
@@ -504,7 +540,7 @@ function printReport() {
   const nextOne = unpaid.filter(i => daysBetween(i.dueDate) >= 0).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   let html = `<h1>تقرير الأقساط — أقساط</h1>
-    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · ١ ريال = ${state.rate} ج.م · ١ دولار = ${state.usdRate} ج.م</div>
+    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · 1 ريال = ${state.rate} ج.م · 1 دولار = ${state.usdRate} ج.م</div>
 
     <h2>المؤشرات</h2>
     <div class="pr-kpis">
@@ -551,11 +587,18 @@ function printReport() {
    شاشة السداد / التسوية
    ========================================================================== */
 let settleSelected = new Set();
+let settleFrom = null, settleTo = null;
+
+function accountsEGP() { return state.accounts.reduce((s, a) => s + toEGP(a.amount, a.currency), 0); }
+function settleUnpaidFiltered() {
+  return allInstallments().filter(i => !i.paid)
+    .filter(i => (!settleFrom || i.dueDate >= settleFrom) && (!settleTo || i.dueDate <= settleTo))
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+}
 
 function settleResultHtml() {
-  const unpaid = allInstallments().filter(i => !i.paid);
-  const assetsEGP = (Number(state.assets.usd) || 0) * state.usdRate + (Number(state.assets.egp) || 0);
-  const selEGP = unpaid.filter(i => settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const assetsEGP = accountsEGP();
+  const selEGP = allInstallments().filter(i => !i.paid && settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0);
   const remainEGP = assetsEGP - selEGP;
   const shortfall = remainEGP < 0;
   return `
@@ -569,17 +612,33 @@ function settleResultHtml() {
     ${shortfall ? '<div class="sr-warn">⚠️ الأصول لا تكفي لسداد الأقساط المختارة</div>' : ''}`;
 }
 
+function accountsHtml() {
+  const dis = canEdit() ? '' : 'disabled';
+  const rows = state.accounts.map(a => `
+    <div class="acc-row" data-acc="${a.id}">
+      <input class="acc-name" data-acc="${a.id}" type="text" value="${escapeHtml(a.name)}" placeholder="اسم الحساب" ${dis} />
+      <input class="acc-amt" data-acc="${a.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${a.amount || ''}" placeholder="0" ${dis} />
+      <select class="acc-cur select" data-acc="${a.id}" ${dis}>
+        <option value="EGP" ${a.currency === 'EGP' ? 'selected' : ''}>جنيه</option>
+        <option value="SAR" ${a.currency === 'SAR' ? 'selected' : ''}>ريال</option>
+        <option value="USD" ${a.currency === 'USD' ? 'selected' : ''}>دولار</option>
+      </select>
+      ${canEdit() ? `<button class="icon-btn" data-act="acc-del" data-id="${a.id}" title="حذف">✕</button>` : ''}
+    </div>`).join('');
+  return rows + (canEdit() ? `<button class="add-inst-btn" data-act="acc-add" style="margin-top:6px">+ إضافة حساب</button>` : '');
+}
+
 function renderSettle() {
   const el = $('#view-settle');
-  const unpaid = allInstallments().filter(i => !i.paid)
-    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-  const validIds = new Set(unpaid.map(i => i.id));
+  if (!settleFrom) settleFrom = todayISO();
+  if (!settleTo) settleTo = addMonths(todayISO(), 1);
+
+  const list = settleUnpaidFiltered();
+  const validIds = new Set(allInstallments().filter(i => !i.paid).map(i => i.id));
   [...settleSelected].forEach(id => { if (!validIds.has(id)) settleSelected.delete(id); });
+  const shortfall = accountsEGP() - allInstallments().filter(i => !i.paid && settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0) < 0;
 
-  const usd = Number(state.assets.usd) || 0, egp = Number(state.assets.egp) || 0;
-  const shortfall = (usd * state.usdRate + egp) - unpaid.filter(i => settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0) < 0;
-
-  const rowsHtml = unpaid.length ? unpaid.map(i => {
+  const rowsHtml = list.length ? list.map(i => {
     const on = settleSelected.has(i.id);
     const over = daysBetween(i.dueDate) < 0;
     return `
@@ -590,38 +649,50 @@ function renderSettle() {
           <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}</div>
         </div>
       </div>`;
-  }).join('') : emptyState('لا أقساط غير مدفوعة', 'كل الأقساط مسدّدة 🎉', '✅');
+  }).join('') : '<div class="pf-empty" style="text-align:center;padding:14px">لا أقساط ضمن هذه الفترة.</div>';
 
   el.innerHTML = `
     <div class="report-block">
-      <h3>💰 أرصدة حساباتي المصرية</h3>
-      <div class="rsub">أدخل رصيد كل حساب، واختر الأقساط لتعرف المتبقّي بعد سدادها.</div>
+      <h3>💰 أرصدة الحسابات</h3>
+      <div class="rsub">أضف حساباتك بأي عملة؛ يُقارن مجموعها بالأقساط المختارة.</div>
+      <div class="acc-list">${accountsHtml()}</div>
+      <div class="rate-note">أسعار اليوم: 1 دولار = ${state.usdRate} E£ · 1 ريال = ${state.rate} E£
+        <button class="btn ghost small" data-act="settle-refresh" style="margin-inline-start:8px">⟳ تحديث</button></div>
+    </div>
+
+    <div class="report-block">
+      <h3>🗓️ فترة الأقساط</h3>
       <div class="row">
-        <label>حساب الدولار ($)
-          <input type="number" id="assetUsd" min="0" step="0.01" inputmode="decimal" value="${usd || ''}" placeholder="0" ${canEdit() ? '' : 'disabled'} />
+        <label>من تاريخ
+          <input type="date" id="settleFrom" value="${settleFrom}" />
         </label>
-        <label>حساب الجنيه (ج.م)
-          <input type="number" id="assetEgp" min="0" step="0.01" inputmode="decimal" value="${egp || ''}" placeholder="0" ${canEdit() ? '' : 'disabled'} />
+        <label>إلى تاريخ
+          <input type="date" id="settleTo" value="${settleTo}" />
         </label>
       </div>
-      <div class="rate-note">أسعار اليوم: ١ دولار = ${state.usdRate} ج.م · ١ ريال = ${state.rate} ج.م
-        <button class="btn ghost small" data-act="settle-refresh" style="margin-inline-start:8px">⟳ تحديث</button></div>
     </div>
 
     <div class="settle-result ${shortfall ? 'short' : ''}" id="settleResult">${settleResultHtml()}</div>
 
     <div class="report-block">
       <div class="view-head" style="margin-bottom:8px">
-        <h3 style="margin:0">اختر الأقساط المراد سدادها</h3>
+        <h3 style="margin:0">اختر الأقساط (${list.length})</h3>
         <button class="btn ghost small" data-act="settle-clear">إلغاء التحديد</button>
       </div>
       <div class="inst-list">${rowsHtml}</div>
-      ${settleSelected.size ? `<button class="btn primary" data-act="settle-pay" style="width:100%;margin-top:12px">✓ تحديد المختار كمدفوع (${settleSelected.size})</button>` : ''}
+      ${settleSelected.size && canEdit() ? `<button class="btn primary" data-act="settle-pay" style="width:100%;margin-top:12px">✓ تحديد المختار كمدفوع (${settleSelected.size})</button>` : ''}
     </div>`;
 
-  const uEl = $('#assetUsd'), eEl = $('#assetEgp');
-  if (uEl) uEl.addEventListener('input', () => { state.assets.usd = Number(uEl.value) || 0; persist(); $('#settleResult').innerHTML = settleResultHtml(); });
-  if (eEl) eEl.addEventListener('input', () => { state.assets.egp = Number(eEl.value) || 0; persist(); $('#settleResult').innerHTML = settleResultHtml(); });
+  // ربط حقول الحسابات
+  const refreshRes = () => { $('#settleResult').innerHTML = settleResultHtml(); };
+  const findAcc = id => state.accounts.find(a => a.id === id);
+  $$('.acc-name').forEach(inp => inp.addEventListener('input', () => { const a = findAcc(inp.dataset.acc); if (a) { a.name = inp.value; persist(); } }));
+  $$('.acc-amt').forEach(inp => inp.addEventListener('input', () => { const a = findAcc(inp.dataset.acc); if (a) { a.amount = Number(inp.value) || 0; persist(); refreshRes(); } }));
+  $$('.acc-cur').forEach(sel => sel.addEventListener('change', () => { const a = findAcc(sel.dataset.acc); if (a) { a.currency = sel.value; persist(); refreshRes(); } }));
+  // تاريخ الفترة
+  const f = $('#settleFrom'), t = $('#settleTo');
+  if (f) f.addEventListener('change', () => { settleFrom = f.value; renderSettle(); });
+  if (t) t.addEventListener('change', () => { settleTo = t.value; renderSettle(); });
 }
 
 function paySelected() {
@@ -683,7 +754,7 @@ function donutChart(paid, remaining) {
   const dash = C * pct;
   return `
   <div class="donut-wrap">
-    <svg class="chart-svg" viewBox="0 0 180 180" width="180" height="180">
+    <svg class="chart-svg donut-svg" viewBox="0 0 180 180" role="img">
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
       <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--ok)" stroke-width="${stroke}"
         stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${C * 0.25}" stroke-linecap="round"
@@ -691,7 +762,7 @@ function donutChart(paid, remaining) {
       <text x="90" y="86" text-anchor="middle" style="font-size:26px;font-weight:800;fill:var(--ink)">${Math.round(pct * 100)}%</text>
       <text x="90" y="106" text-anchor="middle" style="font-size:12px">مدفوع</text>
     </svg>
-    <div class="legend" style="flex-direction:column;gap:10px">
+    <div class="legend">
       <span class="lk"><span class="sw" style="background:var(--ok)"></span> مدفوع: ${fmtEGP(paid)} · ${fmtSAR(paid)}</span>
       <span class="lk"><span class="sw" style="background:var(--line)"></span> متبقٍّ: ${fmtEGP(remaining)} · ${fmtSAR(remaining)}</span>
     </div>
@@ -699,31 +770,23 @@ function donutChart(paid, remaining) {
 }
 
 function unitsTable() {
-  const rows = state.units.map(u => {
-    const sch = unitScheduledTotal(u), paid = unitPaidTotal(u), rem = unitRemaining(u);
+  const card = (name, sch, paid, rem, tot) => {
     const pct = sch > 0 ? Math.round((paid / sch) * 100) : 0;
-    return `<tr>
-      <td>${escapeHtml(u.name)}</td>
-      <td class="num">${fmtEGP(sch)}</td>
-      <td class="num" style="color:var(--ok)">${fmtEGP(paid)}</td>
-      <td class="num" style="color:var(--brand)">${fmtEGP(rem)}</td>
-      <td class="num">${pct}%</td>
-    </tr>`;
-  }).join('');
+    return `<div class="ureport ${tot ? 'tot' : ''}">
+      <div class="ur-head"><span class="ur-name">${escapeHtml(name)}</span><span class="ur-pct">${pct}%</span></div>
+      <div class="progress" style="margin:6px 0 10px"><span style="width:${pct}%"></span></div>
+      <div class="ur-grid">
+        <div><div class="k">مجدول</div><div class="v">${fmtEGP(sch)}</div></div>
+        <div><div class="k">مدفوع</div><div class="v" style="color:var(--ok)">${fmtEGP(paid)}</div></div>
+        <div><div class="k">متبقٍّ</div><div class="v" style="color:var(--brand)">${fmtEGP(rem)}</div></div>
+      </div>
+    </div>`;
+  };
+  const cards = state.units.map(u => card(u.name, unitScheduledTotal(u), unitPaidTotal(u), unitRemaining(u))).join('');
   const tSch = state.units.reduce((s, u) => s + unitScheduledTotal(u), 0);
   const tPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
   const tRem = state.units.reduce((s, u) => s + unitRemaining(u), 0);
-  return `<table class="rtable">
-    <thead><tr><th>الوحدة</th><th style="text-align:end">مجدول</th><th style="text-align:end">مدفوع</th><th style="text-align:end">متبقٍّ</th><th style="text-align:end">%</th></tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot><tr style="font-weight:800">
-      <td>الإجمالي</td>
-      <td class="num">${fmtEGP(tSch)}</td>
-      <td class="num" style="color:var(--ok)">${fmtEGP(tPaid)}</td>
-      <td class="num" style="color:var(--brand)">${fmtEGP(tRem)}</td>
-      <td class="num">${tSch > 0 ? Math.round(tPaid / tSch * 100) : 0}%</td>
-    </tr></tfoot>
-  </table>`;
+  return `<div class="ureport-list">${cards}${card('الإجمالي', tSch, tPaid, tRem, true)}</div>`;
 }
 
 /* ==========================================================================
@@ -926,8 +989,16 @@ function savePostpone(newDate) {
   closePostpone(); persist(); renderAll();
 }
 
+let editUnitType = 'apartment';
+function renderTypePicker() {
+  const el = $('#unitTypePicker');
+  el.innerHTML = allTypes().map(t =>
+    `<button type="button" class="type-chip ${t.key === editUnitType ? 'on' : ''}" data-type="${t.key}">${t.icon} ${escapeHtml(t.label)}</button>`
+  ).join('') + `<button type="button" class="type-chip add" data-type="__add">＋ تصنيف</button>`;
+}
 function openUnitModal(unit) {
   editingUnitId = unit ? unit.id : null;
+  editUnitType = (unit && unit.type) || 'apartment';
   $('#unitModalTitle').textContent = unit ? 'تعديل الوحدة' : 'إضافة وحدة';
   const f = $('#unitForm'); f.reset();
   if (unit) {
@@ -935,9 +1006,25 @@ function openUnitModal(unit) {
     f.totalPrice.value = unit.totalPrice || ''; f.downPayment.value = unit.downPayment || '';
     f.notes.value = unit.notes || '';
   }
+  renderTypePicker();
   $('#unitModal').classList.remove('hidden');
 }
 function closeUnitModal() { $('#unitModal').classList.add('hidden'); editingUnitId = null; }
+
+function pickUnitType(key) {
+  if (key === '__add') {
+    const label = (prompt('اسم التصنيف الجديد:') || '').trim();
+    if (!label) return;
+    const icon = (prompt('رمز/إيموجي للتصنيف (اختياري):') || '📦').trim() || '📦';
+    const k = 'c' + uid();
+    state.customTypes.push({ key: k, icon, label });
+    editUnitType = k;
+    persist();
+  } else {
+    editUnitType = key;
+  }
+  renderTypePicker();
+}
 
 function openInstModal(unitId) {
   addInstUnitId = unitId;
@@ -997,13 +1084,57 @@ function deleteUnit(id) {
    ========================================================================== */
 function openAccountModal() {
   $('#accountUserLine').textContent = currentUser ? `مسجّل الدخول: ${currentUser.email || currentUser.uid}` : 'غير مسجّل';
+  $('#profileName').value = (currentUser && currentUser.displayName) || '';
+  $('#newPassword').value = '';
+  $('#profileMsg').classList.add('hidden');
   $('#autoRateToggle').checked = !!state.autoRate;
   $('#notifToggle').checked = notifEnabled;
+  $('#darkToggle').checked = document.body.classList.contains('dark');
   renderPortfolioList();
   loadMembers();
   $('#accountModal').classList.remove('hidden');
 }
 function closeAccountModal() { $('#accountModal').classList.add('hidden'); }
+
+function profileMsg(kind, text) { const m = $('#profileMsg'); m.className = 'msg ' + kind; m.textContent = text; m.classList.remove('hidden'); }
+
+async function saveDisplayName() {
+  const name = $('#profileName').value.trim();
+  if (!currentUser) return;
+  profileMsg('info', 'جارٍ الحفظ…');
+  try {
+    await currentUser.updateProfile({ displayName: name });
+    updateGreeting();
+    profileMsg('ok', 'تم حفظ الاسم.');
+  } catch (e) { profileMsg('err', authErrorMsg(e)); }
+}
+
+async function changePassword() {
+  const pw = $('#newPassword').value;
+  if (!currentUser) return;
+  if (!pw || pw.length < 6) { profileMsg('err', 'كلمة المرور ٦ أحرف على الأقل.'); return; }
+  profileMsg('info', 'جارٍ تغيير كلمة المرور…');
+  try {
+    await currentUser.updatePassword(pw);
+    $('#newPassword').value = '';
+    profileMsg('ok', 'تم تغيير كلمة المرور.');
+  } catch (e) {
+    const code = (e && (e.code || e.message)) || '';
+    if (/requires-recent-login/i.test(code)) {
+      const cur = prompt('لأمانك، أدخل كلمة المرور الحالية:');
+      if (!cur) { profileMsg('err', 'أُلغي التغيير.'); return; }
+      try {
+        const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, cur);
+        await currentUser.reauthenticateWithCredential(cred);
+        await currentUser.updatePassword(pw);
+        $('#newPassword').value = '';
+        profileMsg('ok', 'تم تغيير كلمة المرور.');
+      } catch (e2) { profileMsg('err', authErrorMsg(e2)); }
+    } else {
+      profileMsg('err', authErrorMsg(e));
+    }
+  }
+}
 
 /* ---------- واجهة المحافظ والمشاركة ---------- */
 function renderPortfolioList() {
@@ -1245,6 +1376,7 @@ function bindEvents() {
   $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
 
   $('#addUnitBtn').addEventListener('click', () => { if (!canEdit()) return toast('عرض فقط — لا تملك صلاحية التعديل'); openUnitModal(null); });
+  $('#unitTypePicker').addEventListener('click', e => { const b = e.target.closest('.type-chip'); if (b) pickUnitType(b.dataset.type); });
   $('#closeUnitModal').addEventListener('click', closeUnitModal);
   $('#cancelUnitBtn').addEventListener('click', closeUnitModal);
   $('#unitModal').addEventListener('click', e => { if (e.target.id === 'unitModal') closeUnitModal(); });
@@ -1255,7 +1387,7 @@ function bindEvents() {
     const data = {
       name: f.name.value.trim(), project: f.project.value.trim(),
       totalPrice: Number(f.totalPrice.value || 0), downPayment: Number(f.downPayment.value || 0),
-      notes: f.notes.value.trim(),
+      notes: f.notes.value.trim(), type: editUnitType,
     };
     if (!data.name) return;
     if (editingUnitId) Object.assign(findUnit(editingUnitId), data);
@@ -1336,10 +1468,15 @@ function bindEvents() {
   $('#importBtn2').addEventListener('click', () => $('#importFile').click());
   $('#importFile').addEventListener('change', importData);
 
+  // الملف الشخصي والإعدادات
+  $('#saveNameBtn').addEventListener('click', saveDisplayName);
+  $('#changePwBtn').addEventListener('click', changePassword);
+  $('#darkToggle').addEventListener('change', e => applyDark(e.target.checked));
+
   // المشاركة والمحافظ
   $('#shareAddBtn').addEventListener('click', addMember);
 
-  const EDIT_ACTS = new Set(['add-inst', 'edit-unit', 'del-unit', 'toggle-paid', 'del-inst', 'postpone', 'settle-pay']);
+  const EDIT_ACTS = new Set(['add-inst', 'edit-unit', 'del-unit', 'toggle-paid', 'del-inst', 'postpone', 'settle-pay', 'acc-add', 'acc-del']);
   document.body.addEventListener('click', e => {
     const btn = e.target.closest('[data-act]'); if (!btn) return;
     const act = btn.dataset.act, id = btn.dataset.id, uidAttr = btn.dataset.uid;
@@ -1357,6 +1494,8 @@ function bindEvents() {
       case 'settle-clear': settleSelected.clear(); renderSettle(); break;
       case 'settle-pay': paySelected(); break;
       case 'settle-refresh': fetchAutoRate(true); break;
+      case 'acc-add': state.accounts.push({ id: uid(), name: 'حساب', amount: 0, currency: 'EGP' }); persist(); renderSettle(); break;
+      case 'acc-del': state.accounts = state.accounts.filter(a => a.id !== id); persist(); renderSettle(); break;
       case 'pf-open': switchPortfolio(id); break;
       case 'pf-leave': leavePortfolio(id); break;
       case 'member-remove': removeMember(id); break;

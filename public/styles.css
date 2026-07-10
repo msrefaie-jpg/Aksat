@@ -113,8 +113,20 @@ body {
 .container { max-width: 860px; width: 100%; margin: 0 auto; padding: 16px; }
 .report-block, .stat, .settle-result, .unit-card, .next-card { min-width: 0; max-width: 100%; }
 .dash-charts > * { min-width: 0; }
-.donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.donut-wrap svg { flex: 0 0 auto; }
+.donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.donut-svg { width: 172px; height: 172px; max-width: 172px; flex: 0 0 auto; display: block; }
+.donut-wrap .legend { flex-direction: column; align-items: center; gap: 8px; }
+
+/* بطاقات تفصيل الوحدات في التقارير */
+.ureport-list { display: grid; gap: 10px; }
+.ureport { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface2); }
+.ureport.tot { background: var(--brand-soft); border-color: var(--brand); }
+.ur-head { display: flex; justify-content: space-between; align-items: baseline; }
+.ur-name { font-weight: 700; font-size: 14px; }
+.ur-pct { font-weight: 800; font-size: 14px; color: var(--brand); }
+.ur-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ur-grid .k { font-size: 11px; color: var(--ink-soft); }
+.ur-grid .v { font-size: 13px; font-weight: 700; margin-top: 2px; }
 .greeting { margin-bottom: 14px; }
 .greeting h2 { font-size: 21px; font-weight: 800; }
 .greeting p { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
@@ -385,6 +397,13 @@ input, select, textarea, button { font-size: 16px; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
   background: var(--bg); padding: 9px 12px; border-radius: 10px;
 }
+.acc-list { display: grid; gap: 8px; margin-bottom: 4px; }
+.acc-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface2); }
+.acc-row input, .acc-row .select { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 9px; padding: 9px 10px; font-size: 16px; font-family: inherit; }
+.acc-name { flex: 1 1 100%; min-width: 0; }
+.acc-amt { flex: 1 1 90px; min-width: 0; }
+.acc-cur { flex: 0 0 auto; }
+.acc-row .icon-btn { flex: 0 0 auto; }
 .settle-result {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
@@ -465,6 +484,32 @@ body.authed .login-overlay { display: none; }
   #printArea .pr-tot { font-weight: 800; background: #eafaf7; }
   #printArea .num { text-align: end; }
 }
+
+/* صفحة الإعدادات (ملء الشاشة) */
+#accountModal { padding: 0; align-items: stretch; }
+.settings-modal {
+  max-width: 620px; width: 100%; height: 100%; max-height: 100%;
+  border-radius: 0; display: flex; flex-direction: column;
+}
+.settings-modal .modal-head {
+  position: sticky; top: 0; background: var(--card); z-index: 2;
+  border-bottom: 1px solid var(--line);
+}
+.settings-modal .form { flex: 1 1 auto; overflow-y: auto; padding-bottom: 30px; }
+@media (min-width: 640px) {
+  #accountModal { padding: 20px; align-items: center; }
+  .settings-modal { height: auto; max-height: 92vh; border-radius: 20px; }
+}
+
+/* منتقي نوع الوحدة */
+.type-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.type-chip {
+  border: 1px solid var(--line); background: var(--surface2); color: var(--ink);
+  border-radius: 999px; padding: 7px 12px; font-size: 14px; font-family: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.type-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.type-chip.add { border-style: dashed; color: var(--brand); }
 
 /* المحافظ والمشاركة */
 .acct-title { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
