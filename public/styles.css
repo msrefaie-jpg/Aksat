@@ -347,6 +347,15 @@ input, select, textarea, button { font-size: 16px; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 .badge.postponed { background: var(--brand-soft); color: var(--brand); font-size: 10.5px; }
 
+/* الخط الزمني لسجلّ القسط */
+.timeline { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; margin-top: 4px; }
+.tl-item { display: flex; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+.tl-item:last-child { border-bottom: none; }
+.tl-ic { flex: 0 0 auto; font-size: 16px; line-height: 1.4; }
+.tl-body { flex: 1 1 auto; min-width: 0; }
+.tl-txt { font-size: 14px; color: var(--ink); font-weight: 600; }
+.tl-time { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+
 /* رمز الريال السعودي الرسمي (SVG مضمّن يتبع لون النص) */
 .sar-sym { height: .92em; width: auto; display: inline-block; vertical-align: -0.08em; margin: 0 1px; }
 

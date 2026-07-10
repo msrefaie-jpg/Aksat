@@ -135,7 +135,25 @@ function withDefaults(obj) {
   s.accounts = s.accounts.map(x => ({ id: x.id || uid(), name: x.name || 'حساب', amount: Number(x.amount) || 0, currency: ['EGP', 'SAR', 'USD'].includes(x.currency) ? x.currency : 'EGP' }));
   delete s.assets;
   if (!Array.isArray(s.customTypes)) s.customTypes = [];
+  // ترحيل: ضمان وجود سجلّ (hist) لكل قسط + توليد قيد دفع للأقساط المدفوعة سابقاً
+  (s.units || []).forEach(u => {
+    (u.installments || []).forEach(i => {
+      if (!Array.isArray(i.hist)) {
+        i.hist = [];
+        if (i.paid) {
+          const d = i.paidDate ? (i.paidDate.length === 10 ? i.paidDate + 'T12:00:00.000Z' : i.paidDate) : nowISO();
+          i.hist.push({ t: d, k: 'paid', amt: Number(i.amount) || 0 });
+        }
+      }
+    });
+  });
   return s;
+}
+
+/* إضافة قيد إلى سجلّ القسط */
+function pushHist(i, k, extra) {
+  if (!Array.isArray(i.hist)) i.hist = [];
+  i.hist.push(Object.assign({ t: nowISO(), k }, extra || {}));
 }
 
 /* ---------- المحافظ والأدوار ---------- */
@@ -525,6 +543,7 @@ function installmentRowHtml(u, i) {
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ ${fmtDate(i.dueDate)}${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
       </div>
       ${badge}
+      <button class="icon-btn" data-act="history" data-uid="${u.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
       ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${u.id}" data-id="${i.id}" title="تأجيل">⏳</button>` : ''}
       <button class="icon-btn" data-act="del-inst" data-uid="${u.id}" data-id="${i.id}" title="حذف">✕</button>
     </div>`;
@@ -566,6 +585,7 @@ function renderUpcoming() {
                 <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
               </div>
               ${over ? `<span class="badge over">متأخّر</span>` : `<span class="badge due">${d} يوم</span>`}
+              <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
               <button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>
             </div>`;
           }).join('')}
@@ -793,7 +813,7 @@ function paySelected() {
   if (!settleSelected.size) return;
   if (!confirm(`تحديد ${settleSelected.size} قسط كمدفوع؟`)) return;
   state.units.forEach(u => (u.installments || []).forEach(i => {
-    if (settleSelected.has(i.id)) { i.paid = true; i.paidDate = todayISO(); }
+    if (settleSelected.has(i.id) && !i.paid) { i.paid = true; i.paidDate = todayISO(); pushHist(i, 'paid', { amt: Number(i.amount) || 0 }); }
   }));
   settleSelected.clear();
   persist(); renderAll();
@@ -1237,9 +1257,67 @@ function savePostpone(newDate) {
   if (!postponeTarget || !newDate) return;
   const u = findUnit(postponeTarget.unitId); if (!u) return;
   const i = u.installments.find(x => x.id === postponeTarget.instId); if (!i) return;
+  const from = i.dueDate;
   i.dueDate = newDate;
+  pushHist(i, 'postpone', { from, to: newDate });
   if (!/تأجيل/.test(i.label || '')) i.label = (i.label ? i.label + ' ' : '') + '(مؤجّل)';
   closePostpone(); persist(); renderAll();
+}
+
+/* ---------- سجلّ القسط (المدفوعات والتاريخ) ---------- */
+let histTarget = null; // { unitId, instId }
+function openHistory(unitId, instId) {
+  const u = findUnit(unitId); if (!u) return;
+  const i = u.installments.find(x => x.id === instId); if (!i) return;
+  histTarget = { unitId, instId };
+  $('#histInfo').innerHTML = `${escapeHtml(u.name)} · ${fmtEGP(i.amount)} · الاستحقاق ${fmtDate(i.dueDate)} — <b>${i.paid ? 'مدفوع' : 'غير مدفوع'}</b>`;
+  const editable = canEdit();
+  const payRow = $('#payDateRow');
+  if (i.paid && editable) { payRow.classList.remove('hidden'); $('#histPayDate').value = (i.paidDate || '').slice(0, 10) || todayISO(); }
+  else payRow.classList.add('hidden');
+  $('#histNoteRow').classList.toggle('hidden', !editable);
+  $('#histNote').value = '';
+  renderHistTimeline(i);
+  $('#historyModal').classList.remove('hidden');
+}
+function closeHistory() { $('#historyModal').classList.add('hidden'); histTarget = null; }
+function currentHistInst() { if (!histTarget) return null; const u = findUnit(histTarget.unitId); return u && u.installments.find(x => x.id === histTarget.instId); }
+function histLabel(e) {
+  switch (e.k) {
+    case 'created': return { ic: '➕', txt: 'أُنشئ القسط' };
+    case 'paid': return { ic: '✅', txt: `تحديد كمدفوع${e.amt ? ' · ' + fmtEGP(e.amt) : ''}` };
+    case 'unpaid': return { ic: '↩️', txt: 'إلغاء السداد' };
+    case 'postpone': return { ic: '⏳', txt: `تأجيل: ${fmtDate(e.from)} ← ${fmtDate(e.to)}` };
+    case 'paydate': return { ic: '📅', txt: `تعديل تاريخ الدفع إلى ${fmtDate(e.to)}` };
+    case 'note': return { ic: '📝', txt: `ملاحظة: ${escapeHtml(e.note || '')}` };
+    default: return { ic: '•', txt: e.k };
+  }
+}
+function renderHistTimeline(i) {
+  const tl = $('#histTimeline');
+  const list = (i.hist || []).slice().reverse();
+  if (!list.length) { tl.innerHTML = '<div class="rsub">لا يوجد سجلّ بعد.</div>'; return; }
+  tl.innerHTML = list.map(e => {
+    const l = histLabel(e);
+    return `<div class="tl-item"><span class="tl-ic">${l.ic}</span><div class="tl-body"><div class="tl-txt">${l.txt}</div><div class="tl-time">${fmtDateTime(e.t)}</div></div></div>`;
+  }).join('');
+}
+function histAddNote() {
+  if (!canEdit()) return;
+  const i = currentHistInst(); if (!i) return;
+  const t = $('#histNote').value.trim(); if (!t) return;
+  pushHist(i, 'note', { note: t });
+  $('#histNote').value = '';
+  renderHistTimeline(i); persist();
+}
+function histSavePayDate() {
+  if (!canEdit()) return;
+  const i = currentHistInst(); if (!i || !i.paid) return;
+  const d = $('#histPayDate').value; if (!d) return;
+  if ((i.paidDate || '').slice(0, 10) === d) return;
+  i.paidDate = d;
+  pushHist(i, 'paydate', { to: d });
+  renderHistTimeline(i); persist();
 }
 
 let editUnitType = 'apartment';
@@ -1319,6 +1397,7 @@ function togglePaid(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
   const i = u.installments.find(x => x.id === instId); if (!i) return;
   i.paid = !i.paid; i.paidDate = i.paid ? todayISO() : null;
+  pushHist(i, i.paid ? 'paid' : 'unpaid', i.paid ? { amt: Number(i.amount) || 0 } : {});
   persist(); renderAll();
 }
 function deleteInstallment(unitId, instId) {
@@ -1721,7 +1800,7 @@ function bindEvents() {
       ['amount', !(amount > 0), 'أدخل مبلغ قسط أكبر من صفر'],
       ['dueDate', !f.dueDate.value, 'أدخل تاريخ الاستحقاق'],
     ])) return;
-    u.installments.push({ id: uid(), amount, dueDate: f.dueDate.value, label: f.label.value.trim(), paid: false, paidDate: null });
+    u.installments.push({ id: uid(), amount, dueDate: f.dueDate.value, label: f.label.value.trim(), paid: false, paidDate: null, hist: [{ t: nowISO(), k: 'created' }] });
     u._open = true; closeInstModal(); persist(); renderAll();
     toast('تمت إضافة القسط');
   });
@@ -1739,7 +1818,7 @@ function bindEvents() {
       ['startDate', !start, 'أدخل تاريخ البداية'],
     ])) return;
     for (let k = 0; k < count; k++) {
-      u.installments.push({ id: uid(), amount, dueDate: addMonths(start, k * freq), label: `قسط ${k + 1} من ${count}`, paid: false, paidDate: null });
+      u.installments.push({ id: uid(), amount, dueDate: addMonths(start, k * freq), label: `قسط ${k + 1} من ${count}`, paid: false, paidDate: null, hist: [{ t: nowISO(), k: 'created' }] });
     }
     u._open = true; closeInstModal(); persist(); renderAll();
     toast(`تمت إضافة ${count} قسط`);
@@ -1811,6 +1890,7 @@ function bindEvents() {
       case 'toggle-paid': togglePaid(uidAttr, id); break;
       case 'del-inst': deleteInstallment(uidAttr, id); break;
       case 'postpone': openPostpone(uidAttr, id); break;
+      case 'history': openHistory(uidAttr, id); break;
       case 'print': printReport(); break;
       case 'settle-toggle': { settleSelected.has(id) ? settleSelected.delete(id) : settleSelected.add(id); renderSettle(); break; }
       case 'settle-clear': settleSelected.clear(); renderSettle(); break;
@@ -1834,6 +1914,12 @@ function bindEvents() {
     if (!runChecks(f, [['newDate', !f.newDate.value, 'أدخل التاريخ الجديد']])) return;
     savePostpone(f.newDate.value);
   });
+
+  // سجلّ القسط
+  $('#closeHistModal').addEventListener('click', closeHistory);
+  $('#historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
+  $('#histAddNote').addEventListener('click', histAddNote);
+  $('#histPayDate').addEventListener('change', histSavePayDate);
 
   // شاشة الترحيب
   const onNext = $('#onboardNext'), onBack = $('#onboardBack'), onSkip = $('#onboardSkip');
@@ -1865,7 +1951,7 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); $('#notifPanel').classList.add('hidden'); }
+    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); $('#notifPanel').classList.add('hidden'); }
   });
 }
 
