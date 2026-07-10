@@ -44,6 +44,7 @@
   </div>
 
   <main class="container">
+    <div class="pf-indicator hidden" id="pfIndicator"></div>
     <div class="greeting" id="greeting"></div>
     <section class="summary" id="summary" aria-label="ملخص عام"></section>
 
@@ -221,6 +222,25 @@
       <div class="form">
         <p class="hint" id="accountUserLine">مسجّل الدخول.</p>
         <button type="button" class="btn ghost" id="logoutBtn">تسجيل الخروج</button>
+
+        <hr class="sep" />
+        <div class="acct-title">المحافظ</div>
+        <div id="portfolioList" class="pf-list"></div>
+
+        <hr class="sep" />
+        <div class="acct-title">مشاركة محفظتي</div>
+        <div class="rsub" style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">ادعُ شخصًا برؤية أو تعديل محفظتك. يجب أن يسجّل بنفس البريد.</div>
+        <div id="membersList" class="pf-list"></div>
+        <div class="share-add">
+          <input type="email" id="shareEmail" placeholder="بريد الشخص" autocomplete="off" />
+          <select id="shareRole" class="select">
+            <option value="viewer">مشاهد</option>
+            <option value="editor">محرّر</option>
+          </select>
+          <button type="button" class="btn primary small" id="shareAddBtn">دعوة</button>
+        </div>
+        <div id="shareMsg" class="msg hidden" style="margin-top:8px"></div>
+
         <hr class="sep" />
         <label class="switch-row">
           <span>تحديث سعر الصرف تلقائياً من الإنترنت</span>

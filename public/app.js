@@ -108,8 +108,27 @@ function withDefaults(obj) {
   return s;
 }
 
-// مفتاح تخزين محلي خاص بكل مستخدم
-function localKey() { return LOCAL_KEY + (currentUser ? ':' + currentUser.uid : ''); }
+/* ---------- المحافظ والأدوار ---------- */
+let portfolios = [];        // [{ key(ownerUid), role, ownerEmail, self }]
+let activePortfolio = null; // المحفظة المعروضة حالياً
+
+function activeKey() { return activePortfolio ? activePortfolio.key : (currentUser ? currentUser.uid : ''); }
+function canEdit() { return !activePortfolio || activePortfolio.role !== 'viewer'; }
+function portfolioQuery() { return activePortfolio ? `?portfolio=${encodeURIComponent(activePortfolio.key)}` : ''; }
+function roleLabel(r) { return r === 'owner' ? 'مالك' : r === 'editor' ? 'محرّر' : 'مشاهد'; }
+function applyRoleUI() {
+  document.body.classList.toggle('readonly', !canEdit());
+  const el = $('#pfIndicator');
+  if (el) {
+    if (activePortfolio && !activePortfolio.self) {
+      el.classList.remove('hidden');
+      el.innerHTML = `👁️ محفظة: ${escapeHtml(activePortfolio.ownerEmail || '')} · <b>${roleLabel(activePortfolio.role)}</b>`;
+    } else el.classList.add('hidden');
+  }
+}
+
+// مفتاح تخزين محلي خاص بكل مستخدم/محفظة
+function localKey() { return LOCAL_KEY + ':' + activeKey(); }
 function saveLocal() {
   try { localStorage.setItem(localKey(), JSON.stringify(state)); } catch (e) { /* تجاهل */ }
 }
@@ -144,7 +163,7 @@ function persist() {
   scheduleCloudPush();
 }
 function scheduleCloudPush() {
-  if (!currentUser || !cloudAvailable) return;
+  if (!currentUser || !cloudAvailable || !canEdit()) return;
   pendingSync = true;
   setSync('sync', 'جارٍ الحفظ…');
   clearTimeout(syncTimer);
@@ -152,11 +171,11 @@ function scheduleCloudPush() {
 }
 
 async function cloudPush() {
-  if (!currentUser || !cloudAvailable) return;
+  if (!currentUser || !cloudAvailable || !canEdit()) return;
   try {
     const h = await authHeaders();
     if (!h) throw new Error('no-token');
-    const res = await fetch(`${API}/state`, {
+    const res = await fetch(`${API}/state${portfolioQuery()}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...h },
       body: JSON.stringify({ state }),
@@ -174,9 +193,11 @@ async function cloudPull() {
   if (!currentUser || !cloudAvailable) return null;
   const h = await authHeaders();
   if (!h) return null;
-  const res = await fetch(`${API}/state`, { headers: h });
+  const res = await fetch(`${API}/state${portfolioQuery()}`, { headers: h });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
-  return res.json(); // { state, updatedAt }
+  const data = await res.json(); // { state, updatedAt, role }
+  if (data.role && activePortfolio) activePortfolio.role = data.role; // الخادم مرجع الدور
+  return data;
 }
 
 /* اكتشاف توفر الخادم السحابي */
@@ -201,11 +222,11 @@ async function syncOnLoad() {
     const remoteState = remote && remote.state;
     const remoteTs = (remoteState && remoteState.updatedAt) || '';
 
-    if (remoteState && Array.isArray(remoteState.units) && remoteTs >= localTs) {
+    if (remoteState && Array.isArray(remoteState.units) && (remoteTs >= localTs || !canEdit())) {
       state = withDefaults(remoteState);
       saveLocal();
       setSync('ok', 'مُزامَن سحابياً');
-    } else if (state.units.length) {
+    } else if (state.units.length && canEdit()) {
       await cloudPush();
     } else {
       setSync('ok', 'مُزامَن سحابياً');
@@ -577,10 +598,10 @@ function renderSettle() {
       <div class="rsub">أدخل رصيد كل حساب، واختر الأقساط لتعرف المتبقّي بعد سدادها.</div>
       <div class="row">
         <label>حساب الدولار ($)
-          <input type="number" id="assetUsd" min="0" step="0.01" inputmode="decimal" value="${usd || ''}" placeholder="0" />
+          <input type="number" id="assetUsd" min="0" step="0.01" inputmode="decimal" value="${usd || ''}" placeholder="0" ${canEdit() ? '' : 'disabled'} />
         </label>
         <label>حساب الجنيه (ج.م)
-          <input type="number" id="assetEgp" min="0" step="0.01" inputmode="decimal" value="${egp || ''}" placeholder="0" />
+          <input type="number" id="assetEgp" min="0" step="0.01" inputmode="decimal" value="${egp || ''}" placeholder="0" ${canEdit() ? '' : 'disabled'} />
         </label>
       </div>
       <div class="rate-note">أسعار اليوم: ١ دولار = ${state.usdRate} ج.م · ١ ريال = ${state.rate} ج.م
@@ -978,9 +999,102 @@ function openAccountModal() {
   $('#accountUserLine').textContent = currentUser ? `مسجّل الدخول: ${currentUser.email || currentUser.uid}` : 'غير مسجّل';
   $('#autoRateToggle').checked = !!state.autoRate;
   $('#notifToggle').checked = notifEnabled;
+  renderPortfolioList();
+  loadMembers();
   $('#accountModal').classList.remove('hidden');
 }
 function closeAccountModal() { $('#accountModal').classList.add('hidden'); }
+
+/* ---------- واجهة المحافظ والمشاركة ---------- */
+function renderPortfolioList() {
+  const el = $('#portfolioList');
+  if (!el) return;
+  if (portfolios.length <= 1) {
+    el.innerHTML = '<div class="pf-empty">لا توجد محافظ مشتركة معك بعد.</div>';
+    return;
+  }
+  el.innerHTML = portfolios.map(p => {
+    const on = activePortfolio && p.key === activePortfolio.key;
+    const name = p.self ? 'محفظتي' : (p.ownerEmail || 'محفظة مشتركة');
+    return `<div class="pf-item ${on ? 'on' : ''}">
+      <div class="pf-info"><div class="pf-name">${on ? '✓ ' : ''}${escapeHtml(name)}</div>
+      <div class="pf-role">${roleLabel(p.role)}</div></div>
+      ${on ? '<span class="pf-cur">معروضة</span>' : `<button class="btn ghost small" data-act="pf-open" data-id="${escapeHtml(p.key)}">فتح</button>`}
+      ${!p.self ? `<button class="icon-btn" data-act="pf-leave" data-id="${escapeHtml(p.key)}" title="مغادرة">✕</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadMembers() {
+  const el = $('#membersList');
+  if (!el || !cloudAvailable) return;
+  el.innerHTML = '<div class="pf-empty">جارٍ التحميل…</div>';
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${API}/shares`, { headers: h });
+    const data = await res.json();
+    const members = data.members || [];
+    if (!members.length) { el.innerHTML = '<div class="pf-empty">لم تشارك محفظتك مع أحد بعد.</div>'; return; }
+    el.innerHTML = members.map(m => `
+      <div class="pf-item">
+        <div class="pf-info"><div class="pf-name">${escapeHtml(m.member_email)}</div>
+        <div class="pf-role">${roleLabel(m.role)}${m.status === 'pending' ? ' · بانتظار التسجيل' : ''}</div></div>
+        <button class="icon-btn" data-act="member-remove" data-id="${escapeHtml(m.member_email)}" title="إزالة">🗑</button>
+      </div>`).join('');
+  } catch { el.innerHTML = '<div class="pf-empty">تعذّر تحميل الأعضاء.</div>'; }
+}
+
+async function addMember() {
+  const email = $('#shareEmail').value.trim();
+  const role = $('#shareRole').value;
+  const msg = $('#shareMsg');
+  if (!email) { msg.className = 'msg err'; msg.textContent = 'أدخل بريد الشخص.'; msg.classList.remove('hidden'); return; }
+  msg.className = 'msg info'; msg.textContent = 'جارٍ الإرسال…'; msg.classList.remove('hidden');
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${API}/shares`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ email, role }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'خطأ');
+    $('#shareEmail').value = '';
+    msg.className = 'msg ok';
+    msg.textContent = data.status === 'pending' ? 'أُضيفت الدعوة — ستُفعّل عند تسجيل هذا الشخص بنفس البريد.' : 'تمت المشاركة بنجاح.';
+    loadMembers();
+  } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || 'تعذّرت المشاركة.'; }
+}
+
+async function removeMember(email) {
+  if (!confirm(`إزالة ${email} من محفظتك؟`)) return;
+  try {
+    const h = await authHeaders();
+    await fetch(`${API}/shares?member=${encodeURIComponent(email)}`, { method: 'DELETE', headers: h });
+    loadMembers();
+  } catch { /* تجاهل */ }
+}
+
+async function leavePortfolio(key) {
+  const p = portfolios.find(x => x.key === key);
+  if (!p || !confirm(`مغادرة محفظة ${p.ownerEmail || ''}؟`)) return;
+  try {
+    const h = await authHeaders();
+    await fetch(`${API}/shares?leave=${encodeURIComponent(key)}`, { method: 'DELETE', headers: h });
+  } catch { /* تجاهل */ }
+  await loadPortfolios();
+  if (!portfolios.find(x => activePortfolio && x.key === activePortfolio.key)) {
+    activePortfolio = portfolios.find(x => x.self) || null;
+    await loadActivePortfolio(false);
+  }
+  renderPortfolioList();
+}
+
+/* ---------- Toast بسيط ---------- */
+let toastTimer = null;
+function toast(text) {
+  let t = $('#toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
 
 let authMode = 'login'; // 'login' | 'signup'
 
@@ -1060,29 +1174,62 @@ async function doLogout() {
 async function onAuthChanged(user) {
   currentUser = user || null;
   if (!currentUser) {
-    document.body.classList.remove('authed');
+    document.body.classList.remove('authed', 'readonly');
+    portfolios = []; activePortfolio = null;
     resetState();
     return;
   }
-  // مستخدم مسجّل: حمّل بياناته المحلية ثم السحابية
   document.body.classList.add('authed');
+  await detectCloud();
+  // حمّل قائمة المحافظ وحدّد محفظتي كافتراضية
+  await loadPortfolios();
+  activePortfolio = portfolios.find(p => p.self) || null;
+  await loadActivePortfolio(true);
+}
+
+/* تحميل قائمة المحافظ (ملكي + المشتركة معي) */
+async function loadPortfolios() {
+  if (!cloudAvailable) { portfolios = [{ key: currentUser.uid, role: 'owner', ownerEmail: currentUser.email, self: true }]; return; }
+  try {
+    const h = await authHeaders();
+    const res = await fetch(`${API}/portfolios`, { headers: h });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    portfolios = (data.portfolios || []).map(p => ({ ...p }));
+    if (!portfolios.length) portfolios = [{ key: currentUser.uid, role: 'owner', ownerEmail: currentUser.email, self: true }];
+  } catch {
+    portfolios = [{ key: currentUser.uid, role: 'owner', ownerEmail: currentUser.email, self: true }];
+  }
+}
+
+/* تحميل بيانات المحفظة النشطة وعرضها */
+async function loadActivePortfolio(initPrefs) {
+  clearTimeout(syncTimer);
   resetState();
   loadLocal();
   $('#rateInput').value = state.rate;
+  applyRoleUI();
   renderAll();
 
-  await detectCloud();
   await syncOnLoad();
 
-  // فعّل سعر الصرف التلقائي مرة واحدة لكل حساب (يُحفظ للحساب)
-  if (!state._prefsInit) { state.autoRate = true; state._prefsInit = true; persist(); }
+  if (initPrefs && canEdit() && !state._prefsInit) { state.autoRate = true; state._prefsInit = true; persist(); }
 
   $('#rateInput').value = state.rate;
+  applyRoleUI();
   renderAll();
   updateRateInfoUI();
-
   if (state.autoRate) fetchAutoRate(false);
   maybeShowBrowserNotif();
+}
+
+async function switchPortfolio(key) {
+  const p = portfolios.find(x => x.key === key);
+  if (!p) return;
+  activePortfolio = p;
+  closeAccountModal();
+  await loadActivePortfolio(false);
+  toast(p.self ? 'محفظتي' : `محفظة ${p.ownerEmail || ''} (${roleLabel(p.role)})`);
 }
 
 /* ==========================================================================
@@ -1094,7 +1241,7 @@ function bindEvents() {
 
   $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
 
-  $('#addUnitBtn').addEventListener('click', () => openUnitModal(null));
+  $('#addUnitBtn').addEventListener('click', () => { if (!canEdit()) return toast('عرض فقط — لا تملك صلاحية التعديل'); openUnitModal(null); });
   $('#closeUnitModal').addEventListener('click', closeUnitModal);
   $('#cancelUnitBtn').addEventListener('click', closeUnitModal);
   $('#unitModal').addEventListener('click', e => { if (e.target.id === 'unitModal') closeUnitModal(); });
@@ -1186,9 +1333,14 @@ function bindEvents() {
   $('#importBtn2').addEventListener('click', () => $('#importFile').click());
   $('#importFile').addEventListener('change', importData);
 
+  // المشاركة والمحافظ
+  $('#shareAddBtn').addEventListener('click', addMember);
+
+  const EDIT_ACTS = new Set(['add-inst', 'edit-unit', 'del-unit', 'toggle-paid', 'del-inst', 'postpone', 'settle-pay']);
   document.body.addEventListener('click', e => {
     const btn = e.target.closest('[data-act]'); if (!btn) return;
     const act = btn.dataset.act, id = btn.dataset.id, uidAttr = btn.dataset.uid;
+    if (EDIT_ACTS.has(act) && !canEdit()) { toast('عرض فقط — لا تملك صلاحية التعديل'); return; }
     switch (act) {
       case 'toggle': { const u = findUnit(id); if (u) { u._open = !u._open; renderUnits(); } break; }
       case 'add-inst': openInstModal(id); break;
@@ -1202,6 +1354,9 @@ function bindEvents() {
       case 'settle-clear': settleSelected.clear(); renderSettle(); break;
       case 'settle-pay': paySelected(); break;
       case 'settle-refresh': fetchAutoRate(true); break;
+      case 'pf-open': switchPortfolio(id); break;
+      case 'pf-leave': leavePortfolio(id); break;
+      case 'member-remove': removeMember(id); break;
     }
   });
 
