@@ -540,7 +540,7 @@ function printReport() {
   const nextOne = unpaid.filter(i => daysBetween(i.dueDate) >= 0).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   let html = `<h1>تقرير الأقساط — أقساط</h1>
-    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · 1 ريال = ${state.rate} ج.م · 1 دولار = ${state.usdRate} ج.م</div>
+    <div class="pr-sub">التاريخ: ${today}${who ? ' · ' + escapeHtml(who) : ''} · 1 ﷼ = ${state.rate} E£ · 1 $ = ${state.usdRate} E£</div>
 
     <h2>المؤشرات</h2>
     <div class="pr-kpis">
@@ -551,7 +551,7 @@ function printReport() {
     </div>
     <div class="pr-bar"><span style="width:${pctPaid}%"></span></div>
     <table>
-      <tr><th>المؤشر</th><th class="num">ج.م</th><th class="num">﷼</th><th class="num">$</th></tr>
+      <tr><th>المؤشر</th><th class="num">E£</th><th class="num">﷼</th><th class="num">$</th></tr>
       <tr class="pr-tot"><td>إجمالي مجدول</td><td class="num">${fmtEGP(tSch)}</td><td class="num">${fmtSAR(tSch)}</td><td class="num">${fmtUSD(tSch)}</td></tr>
       <tr><td>إجمالي مدفوع</td><td class="num">${fmtEGP(tPaid)}</td><td class="num">${fmtSAR(tPaid)}</td><td class="num">${fmtUSD(tPaid)}</td></tr>
       <tr class="pr-tot"><td>إجمالي متبقٍّ</td><td class="num">${fmtEGP(tRem)}</td><td class="num">${fmtSAR(tRem)}</td><td class="num">${fmtUSD(tRem)}</td></tr>
@@ -566,7 +566,7 @@ function printReport() {
     html += `<h2>${escapeHtml(u.name)}${u.project ? ' — ' + escapeHtml(u.project) : ''}</h2>
       <div class="pr-sub">المتبقّي: ${fmtEGP(rem)} (${fmtSAR(rem)}) · عدد الأقساط: ${insts.length}</div>
       <table>
-        <tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (ج.م)</th><th class="num">المبلغ (﷼)</th><th>الحالة</th></tr>
+        <tr><th>#</th><th>الوصف</th><th>الاستحقاق</th><th class="num">المبلغ (E£)</th><th class="num">المبلغ (﷼)</th><th>الحالة</th></tr>
         ${insts.map((i, k) => `<tr>
           <td>${k + 1}</td>
           <td>${escapeHtml(i.label || '')}</td>
