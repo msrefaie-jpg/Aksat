@@ -74,6 +74,7 @@
           <div class="card"><div class="k">إجمالي مجدول</div><div class="v">${egp(t.scheduled)}</div><div class="s">${sar(t.scheduled)}</div></div>
           <div class="card"><div class="k">إجمالي مدفوع</div><div class="v" style="color:var(--ok)">${egp(t.paid)}</div><div class="s">${sar(t.paid)}</div></div>
           <div class="card"><div class="k">إجمالي متبقٍّ</div><div class="v" style="color:var(--brand)">${egp(t.remaining)}</div><div class="s">${sar(t.remaining)}</div></div>
+          ${t.saved > 0 ? `<div class="card"><div class="k">وُفّر بالسداد المبكر</div><div class="v" style="color:var(--ok)">${egp(t.saved)}</div><div class="s">${sar(t.saved)}</div></div>` : ''}
         </div>`;
       (d.units || []).forEach(u => {
         const insts = u.installments || [];

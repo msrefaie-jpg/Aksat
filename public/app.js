@@ -407,12 +407,37 @@ function allInstallments() {
 function unitRemaining(u) {
   return (u.installments || []).filter(i => !i.paid).reduce((s, i) => s + Number(i.amount || 0), 0);
 }
+// المبلغ المدفوع فعلياً لقسط (بعد خصم السداد المبكر إن وُجد)
+function instPaidCash(i) { return i.paid ? (i.paidAmount != null ? Number(i.paidAmount) : Number(i.amount || 0)) : 0; }
 function unitPaidTotal(u) {
-  const inst = (u.installments || []).filter(i => i.paid).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const inst = (u.installments || []).filter(i => i.paid).reduce((s, i) => s + instPaidCash(i), 0);
   return inst + Number(u.downPayment || 0);
 }
 function unitScheduledTotal(u) {
   return (u.installments || []).reduce((s, i) => s + Number(i.amount || 0), 0) + Number(u.downPayment || 0);
+}
+
+/* ---------- خصم السداد المبكر ---------- */
+function unitDiscountRate(u) { return Math.max(0, Number(u && u.earlyDiscount) || 0); } // نسبة سنوية %
+// الخصم المتوقّع لو سُدّد القسط اليوم (متناسب مع عدد أيام التبكير)
+function potentialDiscount(u, i) {
+  const rate = unitDiscountRate(u);
+  if (!rate || i.paid) return 0;
+  const early = daysBetween(i.dueDate); // موجب = أيام متبقّية حتى الاستحقاق
+  if (early <= 0) return 0;
+  const amt = Number(i.amount || 0);
+  return Math.min(amt, amt * (rate / 100) * (early / 365));
+}
+function totalSavedDiscounts() {
+  let s = 0;
+  state.units.forEach(u => (u.installments || []).forEach(i => { if (i.paid && i.discount) s += Number(i.discount) || 0; }));
+  return s;
+}
+// سطر التلميح المعروض على بطاقة القسط: توفير محتمل (غير مدفوع) أو خصم مُطبّق (مدفوع)
+function discountHintHtml(u, i) {
+  if (i.paid) return i.discount ? `<div class="disc-hint applied">💰 وُفّر ${fmtEGP(i.discount)} بالسداد المبكر</div>` : '';
+  const disc = Math.round(potentialDiscount(u, i));
+  return disc > 0 ? `<div class="disc-hint">💰 وفّر ${fmtEGP(disc)} لو سدّدت اليوم</div>` : '';
 }
 
 /* ==========================================================================
@@ -571,6 +596,7 @@ function installmentRowHtml(u, i) {
       <div class="inst-main">
         <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ ${fmtDate(i.dueDate)}${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
+        ${discountHintHtml(u, i)}
       </div>
       ${badge}
       <button class="icon-btn" data-act="history" data-uid="${u.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
@@ -629,6 +655,7 @@ function upcomingRowHtml(i) {
       <div class="inst-main">
         <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
+        ${discountHintHtml(i.unit, i)}
         ${tags}
       </div>
       ${statusBadge}
@@ -677,6 +704,7 @@ function renderReports() {
   const totalScheduled = state.units.reduce((s, u) => s + unitScheduledTotal(u), 0);
   const totalPaid = state.units.reduce((s, u) => s + unitPaidTotal(u), 0);
   const totalRemaining = state.units.reduce((s, u) => s + unitRemaining(u), 0);
+  const saved = totalSavedDiscounts();
 
   el.innerHTML = `
     <div class="view-head" style="flex-wrap:wrap;gap:8px">
@@ -691,6 +719,7 @@ function renderReports() {
       <div class="stat"><div class="label">إجمالي مجدول</div><div class="value">${fmtEGP(totalScheduled)}</div><div class="sub">${fmtSAR(totalScheduled)}</div></div>
       <div class="stat"><div class="label">إجمالي مدفوع</div><div class="value" style="color:var(--ok)">${fmtEGP(totalPaid)}</div><div class="sub">${fmtSAR(totalPaid)}</div></div>
       <div class="stat"><div class="label">إجمالي متبقٍّ</div><div class="value egp">${fmtEGP(totalRemaining)}</div><div class="sub">${fmtSAR(totalRemaining)}</div></div>
+      ${saved > 0 ? `<div class="stat"><div class="label">وُفّر بالسداد المبكر</div><div class="value" style="color:var(--ok)">${fmtEGP(saved)}</div><div class="sub">${fmtSAR(saved)}</div></div>` : ''}
     </div>
 
     <div class="report-block">
@@ -787,14 +816,19 @@ function settleUnpaidFiltered() {
 
 function settleResultHtml() {
   const assetsEGP = accountsEGP();
-  const selEGP = allInstallments().filter(i => !i.paid && settleSelected.has(i.id)).reduce((s, i) => s + Number(i.amount || 0), 0);
-  const remainEGP = assetsEGP - selEGP;
+  const sel = allInstallments().filter(i => !i.paid && settleSelected.has(i.id));
+  const selEGP = sel.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const discEGP = Math.round(sel.reduce((s, i) => s + potentialDiscount(i.unit, i), 0));
+  const netEGP = selEGP - discEGP;
+  const remainEGP = assetsEGP - netEGP;
   const shortfall = remainEGP < 0;
   return `
     <div class="sr-row"><span>إجمالي الأصول</span><b>${fmtEGP(assetsEGP)}</b></div>
     <div class="sr-cur">${fmtSAR(assetsEGP)} · ${fmtUSD(assetsEGP)}</div>
     <div class="sr-row"><span>الأقساط المختارة (${settleSelected.size})</span><b style="color:var(--danger)">− ${fmtEGP(selEGP)}</b></div>
     <div class="sr-cur">${fmtSAR(selEGP)} · ${fmtUSD(selEGP)}</div>
+    ${discEGP > 0 ? `<div class="sr-row"><span>خصم السداد المبكر</span><b style="color:var(--ok)">+ ${fmtEGP(discEGP)}</b></div>
+    <div class="sr-cur">صافي المطلوب دفعه: <b>${fmtEGP(netEGP)}</b></div>` : ''}
     <hr class="sep" />
     <div class="sr-row big"><span>${shortfall ? 'العجز' : 'المتبقّي بعد السداد'}</span><b style="color:${shortfall ? 'var(--danger)' : 'var(--ok)'}">${fmtEGP(Math.abs(remainEGP))}</b></div>
     <div class="sr-cur big">${fmtSAR(Math.abs(remainEGP))} · ${fmtUSD(Math.abs(remainEGP))}</div>
@@ -887,11 +921,17 @@ function renderSettle() {
 function paySelected() {
   if (!settleSelected.size) return;
   if (!confirm(`تحديد ${settleSelected.size} قسط كمدفوع؟`)) return;
-  let n = 0, sum = 0;
+  let n = 0, sum = 0, saved = 0;
   state.units.forEach(u => (u.installments || []).forEach(i => {
-    if (settleSelected.has(i.id) && !i.paid) { i.paid = true; i.paidDate = todayISO(); pushHist(i, 'paid', { amt: Number(i.amount) || 0 }); n++; sum += Number(i.amount) || 0; }
+    if (settleSelected.has(i.id) && !i.paid) {
+      const disc = Math.round(potentialDiscount(u, i));
+      i.paid = true; i.paidDate = todayISO();
+      if (disc > 0) { i.discount = disc; i.paidAmount = Math.round(Number(i.amount || 0)) - disc; } else { i.discount = 0; i.paidAmount = null; }
+      pushHist(i, 'paid', { amt: instPaidCash(i), disc: i.discount || 0 });
+      n++; sum += instPaidCash(i); saved += i.discount || 0;
+    }
   }));
-  if (n) logActivity(`سدّد ${n} قسطًا بإجمالي ${fmtEGP(sum)}`);
+  if (n) logActivity(`سدّد ${n} قسطًا بإجمالي ${fmtEGP(sum)}${saved ? ` (وفّر ${fmtEGP(saved)})` : ''}`);
   settleSelected.clear();
   persist(); renderAll();
 }
@@ -1366,7 +1406,7 @@ function currentHistInst() { if (!histTarget) return null; const u = findUnit(hi
 function histLabel(e) {
   switch (e.k) {
     case 'created': return { ic: '➕', txt: 'أُنشئ القسط' };
-    case 'paid': return { ic: '✅', txt: `تحديد كمدفوع${e.amt ? ' · ' + fmtEGP(e.amt) : ''}` };
+    case 'paid': return { ic: '✅', txt: `تحديد كمدفوع${e.amt ? ' · ' + fmtEGP(e.amt) : ''}${e.disc ? ` (خصم مبكر ${fmtEGP(e.disc)})` : ''}` };
     case 'unpaid': return { ic: '↩️', txt: 'إلغاء السداد' };
     case 'postpone': return { ic: '⏳', txt: `تأجيل: ${fmtDate(e.from)} ← ${fmtDate(e.to)}` };
     case 'paydate': return { ic: '📅', txt: `تعديل تاريخ الدفع إلى ${fmtDate(e.to)}` };
@@ -1438,6 +1478,7 @@ function openUnitModal(unit) {
   if (unit) {
     f.name.value = unit.name || ''; f.project.value = unit.project || '';
     f.totalPrice.value = unit.totalPrice || ''; f.downPayment.value = unit.downPayment || '';
+    f.earlyDiscount.value = unit.earlyDiscount || '';
     f.notes.value = unit.notes || '';
   }
   renderTypePicker();
@@ -1499,9 +1540,19 @@ function findUnit(id) { return state.units.find(u => u.id === id); }
 function togglePaid(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
   const i = u.installments.find(x => x.id === instId); if (!i) return;
-  i.paid = !i.paid; i.paidDate = i.paid ? todayISO() : null;
-  pushHist(i, i.paid ? 'paid' : 'unpaid', i.paid ? { amt: Number(i.amount) || 0 } : {});
-  logActivity(i.paid ? `سدّد قسط ${fmtEGP(i.amount)} في «${u.name}»` : `ألغى سداد قسط في «${u.name}»`);
+  i.paid = !i.paid;
+  if (i.paid) {
+    const disc = Math.round(potentialDiscount(u, i));
+    i.paidDate = todayISO();
+    if (disc > 0) { i.discount = disc; i.paidAmount = Math.round(Number(i.amount || 0)) - disc; }
+    else { i.discount = 0; i.paidAmount = null; }
+    pushHist(i, 'paid', { amt: instPaidCash(i), disc: i.discount || 0 });
+    logActivity(`سدّد قسط ${fmtEGP(instPaidCash(i))} في «${u.name}»${i.discount ? ` (خصم مبكر ${fmtEGP(i.discount)})` : ''}`);
+  } else {
+    i.paidDate = null; i.discount = 0; i.paidAmount = null;
+    pushHist(i, 'unpaid', {});
+    logActivity(`ألغى سداد قسط في «${u.name}»`);
+  }
   persist(); renderAll();
 }
 function deleteInstallment(unitId, instId) {
@@ -1873,15 +1924,17 @@ function bindEvents() {
     const name = f.name.value.trim();
     const totalRaw = f.totalPrice.value.trim(), downRaw = f.downPayment.value.trim();
     const total = Number(totalRaw || 0), down = Number(downRaw || 0);
+    const discRaw = f.earlyDiscount.value.trim(), disc = Number(discRaw || 0);
     if (!runChecks(f, [
       ['name', !name, 'أدخل اسم الوحدة'],
       ['totalPrice', totalRaw !== '' && (isNaN(total) || total < 0), 'أدخل قيمة صحيحة (صفر أو أكثر)'],
       ['downPayment', downRaw !== '' && (isNaN(down) || down < 0), 'أدخل قيمة صحيحة (صفر أو أكثر)'],
       ['downPayment', total > 0 && down > total, 'المقدم أكبر من إجمالي السعر'],
+      ['earlyDiscount', discRaw !== '' && (isNaN(disc) || disc < 0 || disc > 100), 'نسبة الخصم بين صفر و١٠٠'],
     ])) return;
     const data = {
       name, project: f.project.value.trim(),
-      totalPrice: total, downPayment: down,
+      totalPrice: total, downPayment: down, earlyDiscount: disc,
       notes: f.notes.value.trim(), type: editUnitType,
     };
     if (editingUnitId) { Object.assign(findUnit(editingUnitId), data); logActivity(`عدّل وحدة «${data.name}»`); }
@@ -2095,7 +2148,7 @@ function exportData() {
 function csvEscape(v) { v = v == null ? '' : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function exportCSV() {
   if (!state.units.length) { toast('لا توجد بيانات للتصدير'); return; }
-  const rows = [['الوحدة', 'المشروع', 'النوع', 'الوصف', 'تاريخ الاستحقاق', 'المبلغ (EGP)', 'المبلغ (SAR)', 'المبلغ (USD)', 'الحالة', 'تاريخ الدفع']];
+  const rows = [['الوحدة', 'المشروع', 'النوع', 'الوصف', 'تاريخ الاستحقاق', 'المبلغ (EGP)', 'المبلغ (SAR)', 'المبلغ (USD)', 'الحالة', 'تاريخ الدفع', 'المدفوع فعلياً (EGP)', 'خصم مبكر (EGP)', 'الوسوم']];
   state.units.forEach(u => {
     const t = unitType(u);
     (u.installments || []).slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).forEach(i => {
@@ -2105,6 +2158,8 @@ function exportCSV() {
         Math.round((i.amount || 0) / state.rate),
         Math.round((i.amount || 0) / state.usdRate),
         i.paid ? 'مدفوع' : 'غير مدفوع', i.paidDate ? i.paidDate.slice(0, 10) : '',
+        i.paid ? Math.round(instPaidCash(i)) : '', i.discount ? Math.round(i.discount) : '',
+        (i.tags || []).join(' '),
       ]);
     });
   });
@@ -2129,6 +2184,7 @@ function buildReportSnapshot() {
       scheduled: state.units.reduce((s, u) => s + unitScheduledTotal(u), 0),
       paid: state.units.reduce((s, u) => s + unitPaidTotal(u), 0),
       remaining: state.units.reduce((s, u) => s + unitRemaining(u), 0),
+      saved: totalSavedDiscounts(),
     },
     units: state.units.map(u => ({
       name: u.name, project: u.project || '', icon: unitType(u).icon, type: unitType(u).label,

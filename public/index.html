@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -142,6 +142,10 @@
             <input type="number" name="downPayment" min="0" step="0.01" inputmode="decimal" placeholder="0" />
           </label>
         </div>
+        <label>خصم السداد المبكر (% سنوياً)
+          <input type="number" name="earlyDiscount" min="0" max="100" step="0.5" inputmode="decimal" placeholder="0" />
+        </label>
+        <div class="hint" style="font-size:11.5px">اختياري: لو حدّدت نسبة، يحسب التطبيق ما توفّره عند سداد قسط قبل موعده ويطبّق الخصم تلقائياً عند السداد.</div>
         <label>ملاحظات
           <textarea name="notes" rows="2" placeholder="رقم العقد، تفاصيل التواصل..."></textarea>
         </label>
@@ -493,6 +497,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
