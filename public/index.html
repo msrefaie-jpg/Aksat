@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=21" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -394,9 +394,14 @@
           <input type="checkbox" id="autoRateToggle" />
         </label>
         <label class="switch-row">
-          <span>تنبيهات المتصفح للأقساط المستحقة</span>
+          <span>تنبيهات المتصفح (عند فتح التطبيق)</span>
           <input type="checkbox" id="notifToggle" />
         </label>
+        <label class="switch-row hidden" id="pushRow">
+          <span>إشعارات الأقساط (Push) — تصلك والتطبيق مغلق</span>
+          <input type="checkbox" id="pushToggle" />
+        </label>
+        <button type="button" class="btn ghost small hidden" id="pushTestBtn" style="margin-top:2px">إرسال إشعار تجريبي</button>
         <label class="switch-row">
           <span>الوضع الداكن</span>
           <input type="checkbox" id="darkToggle" />
@@ -519,6 +524,6 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

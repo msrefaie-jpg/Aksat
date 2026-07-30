@@ -1,5 +1,5 @@
 /* Service Worker لتطبيق «أقساط» — تمكين العمل دون إنترنت (App Shell) */
-const CACHE = 'aksat-shell-v1';
+const CACHE = 'aksat-shell-v2';
 const CORE = [
   './',
   './index.html',
@@ -28,6 +28,34 @@ self.addEventListener('activate', (e) => {
 function cachePut(req, res) {
   caches.open(CACHE).then((c) => c.put(req, res)).catch(() => {});
 }
+
+/* استقبال إشعار Push وعرضه (يعمل والتطبيق مغلق) */
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
+  const title = d.title || 'أقساط';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    dir: 'rtl',
+    lang: 'ar',
+    tag: d.tag || 'aksat-reminder',
+    data: { url: d.url || './' },
+  }));
+});
+
+/* فتح التطبيق عند الضغط على الإشعار */
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) { if ('focus' in c) return c.focus(); }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
+  );
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;

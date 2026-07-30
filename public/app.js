@@ -1068,6 +1068,77 @@ async function enableBrowserNotifications(silent) {
   return true;
 }
 
+/* ---------- إشعارات Web Push ---------- */
+function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+async function pushSubscription() {
+  if (!pushSupported()) return null;
+  try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); }
+  catch { return null; }
+}
+async function isPushOn() { return !!(await pushSubscription()); }
+async function enablePush() {
+  if (!pushSupported()) { toast('جهازك لا يدعم الإشعارات — على iPhone أضف التطبيق للشاشة الرئيسية أولاً'); return false; }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('لم يُسمح بالإشعارات'); return false; }
+    const res = await fetch(`${API}/push/vapid`);
+    const { publicKey } = await res.json();
+    if (!publicKey) throw new Error('no-key');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(publicKey) });
+    const h = await authHeaders();
+    const r = await fetch(`${API}/push/subscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+    if (!r.ok) throw new Error('subscribe-failed');
+    toast('تم تفعيل الإشعارات ✅');
+    return true;
+  } catch (e) {
+    toast('تعذّر التفعيل — على iPhone تأكّد من إضافة التطبيق للشاشة الرئيسية');
+    return false;
+  }
+}
+async function disablePush() {
+  try {
+    const sub = await pushSubscription();
+    if (sub) {
+      const h = await authHeaders();
+      await fetch(`${API}/push/unsubscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+      await sub.unsubscribe();
+    }
+    toast('أُوقفت الإشعارات');
+  } catch { /* تجاهل */ }
+}
+async function sendTestPush() {
+  try {
+    const h = await authHeaders();
+    const r = await fetch(`${API}/push/test`, { method: 'POST', headers: h });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'تعذّر الإرسال'); return; }
+    toast(d.sent ? 'أُرسل إشعار تجريبي — تحقّق منه' : 'لم يصل الإشعار — تحقّق من الإعدادات');
+  } catch { toast('تعذّر الاتصال بالخادم'); }
+}
+async function onPushToggle(e) {
+  const on = e.target.checked;
+  if (on) { const ok = await enablePush(); e.target.checked = ok; }
+  else { await disablePush(); e.target.checked = false; }
+  updatePushUI();
+}
+async function updatePushUI() {
+  const row = $('#pushRow'); if (!row) return;
+  if (!pushSupported()) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  const on = await isPushOn();
+  const t = $('#pushToggle'); if (t) t.checked = on;
+  const tb = $('#pushTestBtn'); if (tb) tb.classList.toggle('hidden', !on);
+}
+
 function maybeShowBrowserNotif() {
   if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
   // مرة واحدة يومياً كحدّ أقصى
@@ -1612,6 +1683,7 @@ function openAccountModal() {
   $('#notifToggle').checked = notifEnabled;
   $('#darkToggle').checked = document.body.classList.contains('dark');
   updateLockUI();
+  updatePushUI();
   renderPortfolioList();
   loadMembers();
   $('#accountModal').classList.remove('hidden');
@@ -2058,6 +2130,8 @@ function bindEvents() {
     localStorage.setItem(NOTIF_KEY, notifEnabled ? '1' : '0');
     if (notifEnabled) maybeShowBrowserNotif();
   });
+  const pt = $('#pushToggle'); if (pt) pt.addEventListener('change', onPushToggle);
+  const ptb = $('#pushTestBtn'); if (ptb) ptb.addEventListener('click', sendTestPush);
 
   $('#exportBtn2').addEventListener('click', exportData);
   $('#importBtn2').addEventListener('click', () => $('#importFile').click());

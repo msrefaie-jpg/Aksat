@@ -6,3 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
+
+# تذكير يومي بالأقساط الساعة ٦:٠٠ ت.ع.م = ٩ صباحاً بتوقيت السعودية
+[triggers]
+crons = ["0 6 * * *"]

@@ -26,3 +26,20 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at  TIMESTAMPTZ
 );
+
+-- إعدادات عامة للخادم (تتضمّن مفاتيح VAPID ذاتية التوليد لإشعارات Push)
+CREATE TABLE IF NOT EXISTS app_config (
+  key        TEXT PRIMARY KEY,      -- مثال: 'vapid'
+  value      JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- اشتراكات إشعارات Web Push لكل جهاز
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint   TEXT PRIMARY KEY,      -- عنوان الدفع الفريد من خدمة المتصفح
+  user_key   TEXT NOT NULL,         -- 'fb:'+uid لصاحب المحفظة
+  p256dh     TEXT NOT NULL,         -- مفتاح التشفير العام للجهاز (base64url)
+  auth       TEXT NOT NULL,         -- سرّ المصادقة (base64url)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs (user_key);
