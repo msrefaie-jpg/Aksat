@@ -595,7 +595,7 @@ function installmentRowHtml(u, i) {
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${u.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
         <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
-        <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ ${fmtDate(i.dueDate)}${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
+        <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ <bdi>${fmtDate(i.dueDate)}</bdi>${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
         ${discountHintHtml(u, i)}
       </div>
       ${badge}
@@ -605,7 +605,7 @@ function installmentRowHtml(u, i) {
     </div>`;
 }
 
-let flt = { q: '', status: 'unpaid', range: 90, unit: '', type: '', tag: '' };
+let flt = { q: '', status: 'unpaid', range: 0, unit: '', type: '', tag: '' };
 function allTags() {
   const set = new Set();
   state.units.forEach(u => (u.installments || []).forEach(i => (i.tags || []).forEach(t => set.add(t))));
@@ -654,7 +654,7 @@ function upcomingRowHtml(i) {
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
         <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
-        <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
+        <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi>${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
         ${discountHintHtml(i.unit, i)}
         ${tags}
       </div>
@@ -869,7 +869,7 @@ function renderSettle() {
         <span class="inst-check ${on ? 'on' : ''}">${on ? '✓' : ''}</span>
         <div class="inst-main">
           <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</span></div>
-          <div class="inst-date ${over ? 'overdue-txt' : ''}">${escapeHtml(i.unit.name)} · ${fmtDate(i.dueDate)}</div>
+          <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi></div>
         </div>
       </div>`;
   }).join('') : '<div class="pf-empty" style="text-align:center;padding:14px">لا أقساط ضمن هذه الفترة.</div>';
@@ -1537,13 +1537,18 @@ function addMonths(iso, months) {
 
 /* ---------- عمليات البيانات ---------- */
 function findUnit(id) { return state.units.find(u => u.id === id); }
+// نقطة الدخول من الأزرار: تفتح حوار تأكيد قبل تغيير الحالة
 function togglePaid(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
   const i = u.installments.find(x => x.id === instId); if (!i) return;
-  i.paid = !i.paid;
-  if (i.paid) {
+  if (i.paid) { if (confirm('إلغاء تحديد هذا القسط كمدفوع؟')) setPaid(u, i, false, null); }
+  else openPayConfirm(unitId, instId);
+}
+function setPaid(u, i, paid, payDate) {
+  i.paid = paid;
+  if (paid) {
     const disc = Math.round(potentialDiscount(u, i));
-    i.paidDate = todayISO();
+    i.paidDate = payDate || todayISO();
     if (disc > 0) { i.discount = disc; i.paidAmount = Math.round(Number(i.amount || 0)) - disc; }
     else { i.discount = 0; i.paidAmount = null; }
     pushHist(i, 'paid', { amt: instPaidCash(i), disc: i.discount || 0 });
@@ -1554,6 +1559,31 @@ function togglePaid(unitId, instId) {
     logActivity(`ألغى سداد قسط في «${u.name}»`);
   }
   persist(); renderAll();
+}
+
+/* ---------- حوار تأكيد سداد القسط ---------- */
+let payTarget = null;
+function openPayConfirm(unitId, instId) {
+  const u = findUnit(unitId); if (!u) return;
+  const i = u.installments.find(x => x.id === instId); if (!i) return;
+  payTarget = { unitId, instId };
+  const disc = Math.round(potentialDiscount(u, i));
+  const net = Math.round(Number(i.amount || 0)) - disc;
+  $('#payInfo').innerHTML = `<b>${escapeHtml(u.name)}</b> — الاستحقاق <bdi>${fmtDate(i.dueDate)}</bdi>${i.label ? ' · ' + escapeHtml(i.label) : ''}`;
+  $('#payAmount').innerHTML = disc > 0
+    ? `<div class="pay-line"><span>المبلغ</span><b>${fmtEGP(i.amount)}</b></div><div class="pay-line"><span>خصم السداد المبكر</span><b style="color:var(--ok)">− ${fmtEGP(disc)}</b></div><div class="pay-line big"><span>الصافي المطلوب دفعه</span><b>${fmtEGP(net)}</b></div>`
+    : `<div class="pay-line big"><span>المبلغ</span><b>${fmtEGP(i.amount)}</b></div>`;
+  $('#payDate').value = todayISO();
+  $('#payModal').classList.remove('hidden');
+}
+function closePayModal() { $('#payModal').classList.add('hidden'); payTarget = null; }
+function confirmPay() {
+  if (!payTarget) return;
+  const u = findUnit(payTarget.unitId);
+  const i = u && u.installments.find(x => x.id === payTarget.instId);
+  const d = $('#payDate').value || todayISO();
+  closePayModal();
+  if (u && i && !i.paid) setPaid(u, i, true, d);
 }
 function deleteInstallment(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
@@ -2083,6 +2113,12 @@ function bindEvents() {
     savePostpone(f.newDate.value);
   });
 
+  // تأكيد سداد القسط
+  $('#closePayModal').addEventListener('click', closePayModal);
+  $('#cancelPay').addEventListener('click', closePayModal);
+  $('#confirmPayBtn').addEventListener('click', confirmPay);
+  $('#payModal').addEventListener('click', e => { if (e.target.id === 'payModal') closePayModal(); });
+
   // سجلّ النشاط
   $('#activityBtn').addEventListener('click', openActivity);
   $('#closeActivity').addEventListener('click', closeActivity);
@@ -2132,7 +2168,7 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); closeReportShare(); closeActivity(); $('#notifPanel').classList.add('hidden'); }
+    if (e.key === 'Escape') { closeUnitModal(); closeInstModal(); closeAccountModal(); closePostpone(); closeHistory(); closeReportShare(); closeActivity(); closePayModal(); $('#notifPanel').classList.add('hidden'); }
   });
 }
 
