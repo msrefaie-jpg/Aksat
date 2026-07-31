@@ -167,8 +167,18 @@ body.dark .skel::after { background: linear-gradient(90deg, transparent, rgba(25
 .report-block, .stat, .settle-result, .unit-card, .next-card { min-width: 0; max-width: 100%; }
 .dash-charts > * { min-width: 0; }
 .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
-.donut-svg { width: 172px; height: 172px; max-width: 172px; flex: 0 0 auto; display: block; }
+.donut-ring { position: relative; width: 172px; height: 172px; flex: 0 0 auto; }
+.donut-svg { width: 172px; height: 172px; max-width: 172px; display: block; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.donut-pct { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -.5px; line-height: 1; }
+.donut-lbl { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
 .donut-wrap .legend { flex-direction: column; align-items: center; gap: 8px; }
+
+/* أسماء أشهر الرسم البياني كـHTML (خارج SVG لتفادي انعكاس iOS) */
+/* direction:ltr ليطابق ترتيب الأعمدة داخل SVG (الشهر الأول يسارًا)؛ كل كلمة تُشكَّل صحيحة */
+.bar-labels { display: grid; direction: ltr; margin-top: 4px; }
+.bar-labels span { text-align: center; font-size: 11px; color: var(--ink-soft); line-height: 1.3; }
+.bar-labels i { display: block; font-style: normal; opacity: .7; font-size: 10px; }
 
 /* بطاقات تفصيل الوحدات في التقارير */
 .ureport-list { display: grid; gap: 10px; }

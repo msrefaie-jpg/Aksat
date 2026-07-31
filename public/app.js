@@ -958,25 +958,31 @@ function monthlyBarChart(months) {
   const bw = (W - padX * 2) / N;
   const chartH = H - padB - padT;
 
-  let bars = '', labels = '', grid = '';
-  // خطوط شبكية أفقية
+  const H2 = H - padB + 10; // نقتصر ارتفاع SVG على منطقة الأعمدة (الأسماء أصبحت HTML)
+  let bars = '', grid = '';
+  // خطوط شبكية أفقية (الأرقام لاتينية فتبقى داخل SVG)
   for (let g = 0; g <= 4; g++) {
     const y = padT + chartH * (g / 4);
     grid += `<line class="grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
     grid += `<text x="${W - padX}" y="${y - 3}" text-anchor="end">${fmtCompact(max * (1 - g / 4))}</text>`;
   }
-  buckets.forEach((b, k) => {
+  buckets.forEach((b) => {
     const h = b.sum > 0 ? Math.max(2, (b.sum / max) * chartH) : 0;
-    const x = padX + k * bw + bw * 0.18;
+    const x = padX + buckets.indexOf(b) * bw + bw * 0.18;
     const w = bw * 0.64;
     const y = padT + chartH - h;
-    bars += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="var(--brand)"><title>${monthShort(b.y, b.m)} ${b.y}: ${fmtEGP(b.sum)}</title></rect>`;
+    bars += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="var(--brand)"/>`;
     if (b.sum > 0) bars += `<text x="${x + w / 2}" y="${y - 4}" text-anchor="middle" style="font-weight:700">${fmtCompact(b.sum)}</text>`;
-    labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 18}" text-anchor="middle">${monthShort(b.y, b.m)}</text>`;
-    if (k === 0 || b.m === 0) labels += `<text x="${padX + k * bw + bw / 2}" y="${H - padB + 32}" text-anchor="middle" style="opacity:.7">${b.y}</text>`;
   });
+  // أسماء الأشهر كـHTML (يتجنّب انعكاس النص العربي داخل SVG على iOS)
+  const labelCells = buckets.map((b, k) =>
+    `<span>${monthShort(b.y, b.m)}${(k === 0 || b.m === 0) ? `<i>${b.y}</i>` : ''}</span>`
+  ).join('');
   const barsLabel = `رسم بياني لأعمدة الأقساط المستحقة خلال ${N} أشهر قادمة`;
-  return `<svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${barsLabel}">${grid}${bars}${labels}</svg>`;
+  return `<div class="bar-chart">
+    <svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H2}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${barsLabel}">${grid}${bars}</svg>
+    <div class="bar-labels" style="grid-template-columns:repeat(${N},1fr);padding-inline:${(padX / W * 100).toFixed(2)}%">${labelCells}</div>
+  </div>`;
 }
 
 function donutChart(paid, remaining) {
@@ -986,14 +992,15 @@ function donutChart(paid, remaining) {
   const dash = C * pct;
   return `
   <div class="donut-wrap">
-    <svg class="chart-svg donut-svg" viewBox="0 0 180 180" role="img" aria-label="نسبة السداد الإجمالية ${Math.round(pct * 100)}٪ — مدفوع ${fmtEGP(paid)}، متبقٍّ ${fmtEGP(remaining)}">
-      <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
-      <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--ok)" stroke-width="${stroke}"
-        stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${C * 0.25}" stroke-linecap="round"
-        transform="rotate(-90 90 90)"/>
-      <text x="90" y="86" text-anchor="middle" style="font-size:26px;font-weight:800;fill:var(--ink)">${Math.round(pct * 100)}%</text>
-      <text x="90" y="106" text-anchor="middle" direction="rtl" style="font-size:12px">مدفوع</text>
-    </svg>
+    <div class="donut-ring">
+      <svg class="chart-svg donut-svg" viewBox="0 0 180 180" role="img" aria-label="نسبة السداد الإجمالية ${Math.round(pct * 100)}٪ — مدفوع ${fmtEGP(paid)}، متبقٍّ ${fmtEGP(remaining)}">
+        <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--line)" stroke-width="${stroke}"/>
+        <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--ok)" stroke-width="${stroke}"
+          stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${C * 0.25}" stroke-linecap="round"
+          transform="rotate(-90 90 90)"/>
+      </svg>
+      <div class="donut-center"><div class="donut-pct">${Math.round(pct * 100)}%</div><div class="donut-lbl">مدفوع</div></div>
+    </div>
     <div class="legend">
       <span class="lk"><span class="sw" style="background:var(--ok)"></span> مدفوع: ${fmtEGP(paid)} · ${fmtSAR(paid)}</span>
       <span class="lk"><span class="sw" style="background:var(--line)"></span> متبقٍّ: ${fmtEGP(remaining)} · ${fmtSAR(remaining)}</span>
@@ -1947,10 +1954,17 @@ async function onAuthChanged(user) {
     return;
   }
   document.body.classList.add('authed');
+  // عرض فوري للبيانات المحلية المخزّنة (أو هياكل تحميل إن لم توجد) قبل انتظار الشبكة
+  activePortfolio = { key: currentUser.uid, role: 'owner', ownerEmail: currentUser.email, self: true };
+  resetState(); loadLocal();
+  syncingInitial = !state.units.length;
+  $('#rateInput').value = state.rate;
+  applyRoleUI(); renderAll();
+  // ثم عمليات الشبكة
   await detectCloud();
   // حمّل قائمة المحافظ وحدّد محفظتي كافتراضية
   await loadPortfolios();
-  activePortfolio = portfolios.find(p => p.self) || null;
+  activePortfolio = portfolios.find(p => p.self) || activePortfolio;
   await loadActivePortfolio(true);
   // تلميح: توجد محافظ مشتركة معك
   const sharedCount = portfolios.filter(p => !p.self).length;
