@@ -523,6 +523,18 @@ input.invalid, select.invalid { outline: 2px solid var(--danger) !important; out
   display: flex; flex-direction: column; justify-content: center;
   padding: 40px 28px;
 }
+/* منع وميض نموذج الدخول قبل حسم حالة الجلسة */
+body:not(.booted) .login-overlay { display: none; }
+
+/* شاشة البداية (splash) حتى تُحسم حالة الدخول */
+#bootSplash {
+  position: fixed; inset: 0; z-index: 245;
+  background: linear-gradient(160deg, #0f766e 0%, #0b5850 60%, #083f3a 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+}
+body.booted #bootSplash { display: none; }
+.boot-logo { width: 84px; height: 84px; border-radius: 22px; padding: 8px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); }
+.boot-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin .8s linear infinite; }
 
 /* شاشة الترحيب لأول استخدام */
 .onboard-overlay {

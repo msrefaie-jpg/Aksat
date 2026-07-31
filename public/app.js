@@ -992,7 +992,7 @@ function donutChart(paid, remaining) {
         stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${C * 0.25}" stroke-linecap="round"
         transform="rotate(-90 90 90)"/>
       <text x="90" y="86" text-anchor="middle" style="font-size:26px;font-weight:800;fill:var(--ink)">${Math.round(pct * 100)}%</text>
-      <text x="90" y="106" text-anchor="middle" style="font-size:12px">مدفوع</text>
+      <text x="90" y="106" text-anchor="middle" direction="rtl" style="font-size:12px">مدفوع</text>
     </svg>
     <div class="legend">
       <span class="lk"><span class="sw" style="background:var(--ok)"></span> مدفوع: ${fmtEGP(paid)} · ${fmtSAR(paid)}</span>
@@ -1939,6 +1939,7 @@ async function doLogout() {
 /* عند تغيّر حالة الدخول */
 async function onAuthChanged(user) {
   currentUser = user || null;
+  document.body.classList.add('booted'); // حُسمت حالة الدخول → أخفِ شاشة البداية
   if (!currentUser) {
     document.body.classList.remove('authed', 'readonly');
     portfolios = []; activePortfolio = null;
@@ -2389,9 +2390,12 @@ function init() {
   registerServiceWorker();
   if (!navigator.onLine) setSync('off', 'دون اتصال — محلي فقط');
   if (lockEnabled()) showLock(); // اقفل فور فتح التطبيق
+  // احتياط: لا تُبقِ شاشة البداية عالقة إن تأخّر فايربيز
+  setTimeout(() => document.body.classList.add('booted'), 3500);
 
   // تهيئة Firebase للمصادقة
   if (typeof firebase === 'undefined' || !firebase.auth) {
+    document.body.classList.add('booted');
     $('#loginMsg').className = 'msg err';
     $('#loginMsg').textContent = 'تعذّر تحميل نظام الدخول — تحقّق من الاتصال بالإنترنت.';
     $('#loginMsg').classList.remove('hidden');
@@ -2402,6 +2406,7 @@ function init() {
     fbAuth = firebase.auth();
     fbAuth.onAuthStateChanged(onAuthChanged);
   } catch (e) {
+    document.body.classList.add('booted');
     $('#loginMsg').className = 'msg err';
     $('#loginMsg').textContent = 'خطأ في تهيئة الدخول: ' + (e.message || e);
     $('#loginMsg').classList.remove('hidden');
