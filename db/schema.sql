@@ -43,3 +43,10 @@ CREATE TABLE IF NOT EXISTS push_subs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs (user_key);
+
+-- حالة آخر تنبيه لكل مستخدم (لإرسال الإشعار فقط عند حدوث تغيير جديد)
+CREATE TABLE IF NOT EXISTS push_state (
+  user_key   TEXT PRIMARY KEY,
+  notified   JSONB NOT NULL DEFAULT '{}'::jsonb,  -- { inst_id: 'overdue'|'soon' }
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
