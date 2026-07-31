@@ -594,7 +594,7 @@ function installmentRowHtml(u, i) {
     <div class="inst-row ${i.paid ? 'paid' : isOverdue ? 'overdue' : ''}">
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${u.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
-        <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)}</bdi></div>
+        <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ <bdi>${fmtDate(i.dueDate)}</bdi>${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
         ${discountHintHtml(u, i)}
       </div>
@@ -655,7 +655,7 @@ function upcomingRowHtml(i) {
     <div class="inst-row ${i.paid ? 'paid' : over ? 'overdue' : ''}">
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
-        <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)}</bdi></div>
+        <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi>${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
         ${discountHintHtml(i.unit, i)}
         ${tags}
@@ -872,7 +872,7 @@ function renderSettle() {
       <div class="inst-row ${on ? 'sel' : ''}" data-act="settle-toggle" data-id="${i.id}">
         <span class="inst-check ${on ? 'on' : ''}">${on ? '✓' : ''}</span>
         <div class="inst-main">
-          <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</bdi></div>
+          <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</span></div>
           <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi></div>
         </div>
       </div>`;

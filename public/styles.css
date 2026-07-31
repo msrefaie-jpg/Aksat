@@ -347,10 +347,10 @@ input, select, textarea, button { font-size: 16px; }
 }
 .inst-check.on { background: var(--ok); border-color: var(--ok); }
 .inst-main { flex: 1 1 auto; min-width: 0; }
-/* المبالغ: الجنيه بارز والريال أسفله، معزولة LTR ليأتي الرمز بجوار رقمه دائماً */
-.inst-amt { display: flex; flex-direction: column; min-width: 0; }
-.amt-egp { display: block; font-size: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.25; }
-.amt-sar { display: block; font-size: 12px; font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* المبالغ: الجنيه بارز والريال أسفله — محاذاة لليمين (المحاذاة العربية) */
+.inst-amt { min-width: 0; }
+.amt-egp { display: block; text-align: right; font-size: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.25; }
+.amt-sar { display: block; text-align: right; font-size: 12px; font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .inst-date { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
 .inst-date.overdue-txt { color: var(--danger); font-weight: 600; }
 .inst-label { font-size: 12px; color: var(--ink-soft); }
