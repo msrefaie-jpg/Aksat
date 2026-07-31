@@ -594,14 +594,16 @@ function installmentRowHtml(u, i) {
     <div class="inst-row ${i.paid ? 'paid' : isOverdue ? 'overdue' : ''}">
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${u.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
-        <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
+        <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)}</bdi></div>
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ <bdi>${fmtDate(i.dueDate)}</bdi>${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
         ${discountHintHtml(u, i)}
       </div>
-      ${badge}
-      <button class="icon-btn" data-act="history" data-uid="${u.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
-      ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${u.id}" data-id="${i.id}" title="تأجيل">⏳</button>` : ''}
-      <button class="icon-btn" data-act="del-inst" data-uid="${u.id}" data-id="${i.id}" title="حذف">✕</button>
+      <div class="inst-side">
+        ${badge}
+        <button class="icon-btn" data-act="history" data-uid="${u.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
+        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${u.id}" data-id="${i.id}" title="تأجيل">⏳</button>` : ''}
+        <button class="icon-btn" data-act="del-inst" data-uid="${u.id}" data-id="${i.id}" title="حذف">✕</button>
+      </div>
     </div>`;
 }
 
@@ -653,14 +655,16 @@ function upcomingRowHtml(i) {
     <div class="inst-row ${i.paid ? 'paid' : over ? 'overdue' : ''}">
       <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
-        <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)}</span></div>
+        <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)}</bdi></div>
         <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi>${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
         ${discountHintHtml(i.unit, i)}
         ${tags}
       </div>
-      ${statusBadge}
-      <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
-      ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>` : ''}
+      <div class="inst-side">
+        ${statusBadge}
+        <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
+        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>` : ''}
+      </div>
     </div>`;
 }
 function renderUpcoming() {
@@ -868,7 +872,7 @@ function renderSettle() {
       <div class="inst-row ${on ? 'sel' : ''}" data-act="settle-toggle" data-id="${i.id}">
         <span class="inst-check ${on ? 'on' : ''}">${on ? '✓' : ''}</span>
         <div class="inst-main">
-          <div class="inst-amt">${fmtEGP(i.amount)}<span class="sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</span></div>
+          <div class="inst-amt"><bdi class="amt-egp">${fmtEGP(i.amount)}</bdi><bdi class="amt-sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</bdi></div>
           <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi></div>
         </div>
       </div>`;
@@ -1220,7 +1224,8 @@ function applyDark(on) {
   const b = $('#darkBtn');
   if (b) b.textContent = on ? '☀️' : '🌙';
   localStorage.setItem('aksat.dark', on ? '1' : '0');
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#0b1220' : '#0f766e');
+  // اجعل لون شريط المتصفّح يتبع سِمة التطبيق (لا سِمة النظام)
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#000000' : '#f2f2f7');
 }
 function toggleDark() { applyDark(!document.body.classList.contains('dark')); }
 function initDark() {

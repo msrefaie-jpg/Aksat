@@ -49,6 +49,7 @@ body.dark {
 
 * { box-sizing: border-box; margin: 0; padding: 0; min-width: 0; }
 
+html { background: var(--bg); }
 html, body { overflow-x: hidden; max-width: 100%; }
 button, a, .tab, .inst-row, .stat { -webkit-tap-highlight-color: transparent; }
 
@@ -332,27 +333,32 @@ input, select, textarea, button { font-size: 16px; }
 .inst-list { margin-top: 10px; display: grid; gap: 8px; }
 .inst-row {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 12px;
+  padding: 10px 12px;
   background: var(--surface2);
   border-radius: 12px;
 }
 .inst-row.paid { background: var(--ok-soft); }
 .inst-row.overdue { background: var(--danger-soft); }
 .inst-check {
-  width: 22px; height: 22px; flex-shrink: 0;
-  border-radius: 7px; border: 2px solid var(--line);
+  width: 26px; height: 26px; flex: 0 0 auto;
+  border-radius: 50%; border: 2px solid var(--line);
   cursor: pointer; display: grid; place-items: center;
-  background: var(--card); font-size: 13px; color: #fff;
+  background: var(--card); font-size: 14px; color: #fff;
 }
 .inst-check.on { background: var(--ok); border-color: var(--ok); }
-.inst-main { flex: 1; min-width: 0; }
-.inst-amt { font-weight: 700; font-size: 14.5px; }
-.inst-amt .sar { font-weight: 500; font-size: 12px; color: var(--ink-soft); margin-inline-start: 6px; }
-.inst-date { font-size: 12px; color: var(--ink-soft); }
+.inst-main { flex: 1 1 auto; min-width: 0; }
+/* المبالغ: الجنيه بارز والريال أسفله، معزولة LTR ليأتي الرمز بجوار رقمه دائماً */
+.inst-amt { display: flex; flex-direction: column; min-width: 0; }
+.amt-egp { display: block; font-size: 16px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.25; }
+.amt-sar { display: block; font-size: 12px; font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.inst-date { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
 .inst-date.overdue-txt { color: var(--danger); font-weight: 600; }
 .inst-label { font-size: 12px; color: var(--ink-soft); }
+/* منطقة الحالة والإجراءات: مضغوطة على اليسار */
+.inst-side { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.inst-side .icon-btn { min-width: 34px; min-height: 34px; font-size: 15px; }
 .badge {
-  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap;
 }
 .badge.due { background: var(--warn-soft); color: var(--warn); }
 .badge.over { background: var(--danger-soft); color: var(--danger); }
