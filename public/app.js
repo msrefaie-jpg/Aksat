@@ -940,6 +940,12 @@ function paySelected() {
   persist(); renderAll();
 }
 
+// عرض سعر الصرف برقمين عشريين كحد أقصى (14.4602 → 14.46)
+function fmtRate(r) {
+  const n = Number(r);
+  return isFinite(n) ? String(Math.round(n * 100) / 100) : r;
+}
+
 function monthlyBarChart(months) {
   const N = months || 12;
   const now = new Date();
@@ -1212,8 +1218,8 @@ async function fetchAutoRate(manual) {
 }
 
 function updateFxLine() {
-  if ($('#fxUsd')) $('#fxUsd').textContent = state.usdRate;
-  if ($('#fxSar')) $('#fxSar').textContent = state.rate;
+  if ($('#fxUsd')) $('#fxUsd').textContent = fmtRate(state.usdRate);
+  if ($('#fxSar')) $('#fxSar').textContent = fmtRate(state.rate);
   if ($('#rateInput')) $('#rateInput').value = state.rate;
 }
 function updateRateInfoUI() { updateFxLine(); }

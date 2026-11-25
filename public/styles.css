@@ -825,7 +825,7 @@ body.readonly .inst-row[data-act="settle-toggle"] { pointer-events: none; opacit
 }
 
 /* --- الشاشة الداخلية (مفتوح) أو الوضع الأفقي العريض --- */
-@media (min-width: 700px) {
+@media (min-width: 700px), (min-width: 560px) and (max-height: 520px) {
   body { padding-bottom: 24px; padding-inline-start: var(--rail-w); }
 
   /* شريط التنقّل يتحوّل إلى شريط جانبي على جهة البداية (اليمين) */
@@ -882,4 +882,74 @@ body.readonly .inst-row[data-act="settle-toggle"] { pointer-events: none; opacit
 @media (vertical-viewport-segments: 2) {
   .modal-overlay { align-items: start; }
   .modal { max-height: calc(env(viewport-segment-height 0 0, 50vh) - 32px); }
+}
+
+/* =====================================================================
+   التكيّف مع كل حالات العرض (تقسيم الشاشة، نافذة صغيرة، أفقي قصير)
+   يعتمد على العرض والارتفاع معاً، لا على نوع الجهاز.
+   ===================================================================== */
+
+/* ارتفاع محدود (تقسيم الشاشة، أفقي، نافذة منزلقة): نوفّر المساحة العمودية */
+@media (max-height: 760px) {
+  .app-header { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 6px; }
+  .brand-logo { width: 32px; height: 32px; border-radius: 9px; }
+  .brand h1 { font-size: 18px; }
+  .sync-bar { padding-top: 0; padding-bottom: 0; }
+  .sync-bar .link-btn { min-height: 34px; }
+  .container { padding-top: 10px; }
+  .greeting { margin-bottom: 10px; }
+  .greeting h2 { font-size: 21px; }
+  .greeting p { display: none; }
+  .summary { gap: 10px; margin-bottom: 14px; }
+  .stat { padding: 11px 13px; }
+  .stat .label { font-size: 12px; margin-bottom: 3px; }
+  .stat .value { font-size: 20px; }
+  .stat .sub { font-size: 11.5px; }
+  .view-head { margin-bottom: 10px; }
+  .view-head h2 { font-size: 19px; }
+  .modal { max-height: calc(100dvh - 24px); }
+  .modal-overlay { padding: 12px; }
+}
+
+/* شريط سفلي أنحف حين يكون الارتفاع محدوداً */
+@media (max-height: 760px) and (max-width: 699px) {
+  .tabs { padding-top: 3px; padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px)); }
+  .tab { padding: 4px 2px 2px; gap: 1px; font-size: 10px; }
+  .tab svg { width: 22px; height: 22px; }
+  body { padding-bottom: 70px; }
+  #toast { bottom: 76px; }
+}
+
+/* ارتفاع قصير جداً (أفقي هاتف/نصف شاشة أفقي) */
+@media (max-height: 520px) {
+  .greeting { display: none; }
+  .summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .notif-panel { max-height: calc(100dvh - 80px); }
+}
+
+/* الشريط الجانبي في الارتفاع القصير: أزرار مضغوطة لتتسع الخمسة */
+@media (min-width: 560px) and (max-height: 520px) {
+  .tabs { gap: 2px; padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .tabs .tab { padding: 5px 2px; font-size: 10.5px; }
+  .tabs .tab svg { width: 22px; height: 22px; }
+  :root { --rail-w: 78px; }
+}
+
+/* عرض ضيق جداً (نافذة جانبية صغيرة أو شاشة مطويّة صغيرة) */
+@media (max-width: 360px) {
+  :root { --gutter-l: max(12px, env(safe-area-inset-left, 0px)); --gutter-r: max(12px, env(safe-area-inset-right, 0px)); }
+  .summary { gap: 8px; }
+  .stat { padding: 10px 11px; }
+  .stat .value { font-size: 18px; letter-spacing: -.4px; }
+  .fx-line { font-size: 10px; }
+  .header-tools .hbtn { width: 38px; height: 38px; font-size: 17px; }
+  .tab span { font-size: 9.5px; }
+  .row { grid-template-columns: 1fr; }
+}
+
+/* عرض متوسط (نصف شاشة كبيرة 500–699): الرسوم متجاورة والوحدات بعمودين حين يتّسع */
+@media (min-width: 520px) and (max-width: 699px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-charts { grid-template-columns: 1fr 1fr; }
+  .units-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
 }
