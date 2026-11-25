@@ -984,3 +984,10 @@ body.readonly .inst-row[data-act="settle-toggle"] { pointer-events: none; opacit
 @media (max-height: 520px) and (min-width: 640px) {
   .summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+/* الرقم في البطاقة يبقى في سطر واحد ويصغر تلقائياً حسب عرض البطاقة */
+.stat { container-type: inline-size; }
+@supports (font-size: 1cqi) {
+  .stat .value { white-space: nowrap; font-size: min(var(--stat-fs, 24px), 15cqi); }
+  @media (max-height: 760px) { .stat .value { --stat-fs: 20px; } }
+  @media (max-width: 360px) { .stat .value { --stat-fs: 18px; } }
+}
