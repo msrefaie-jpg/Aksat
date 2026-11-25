@@ -798,3 +798,88 @@ body.readonly .inst-row[data-act="settle-toggle"] { pointer-events: none; opacit
   .subtitle { display: none; }
   .tabs .tab { font-size: 13px; padding: 9px 4px; }
 }
+
+/* =====================================================================
+   دعم الآيفون القابل للطي (iPhone Duo / Fold) والشاشات العريضة
+   - الشاشة الخارجية (مطويّ): واجهة هاتف مضغوطة.
+   - الشاشة الداخلية (مفتوح ~ 4:3): شريط تنقّل جانبي + تخطيط بعمودين.
+   - مفصل الطي (Viewport Segments API): توزيع المحتوى على جانبي المفصل.
+   ===================================================================== */
+:root {
+  --rail-w: 92px;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+.container { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+.app-header { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+
+/* --- الشاشة الخارجية الضيّقة (مطويّ) --- */
+@media (max-width: 400px) {
+  .container { padding-top: 12px; }
+  .summary { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px 13px; }
+  .stat .value { font-size: 20px; }
+  .greeting h2 { font-size: 24px; }
+  .view-head h2 { font-size: 20px; }
+  .brand-logo { width: 34px; height: 34px; border-radius: 9px; }
+}
+
+/* --- الشاشة الداخلية (مفتوح) أو الوضع الأفقي العريض --- */
+@media (min-width: 700px) {
+  body { padding-bottom: 24px; padding-inline-start: var(--rail-w); }
+
+  /* شريط التنقّل يتحوّل إلى شريط جانبي على جهة البداية (اليمين) */
+  .tabs {
+    top: 0; bottom: 0; inset-inline-start: 0; inset-inline-end: auto;
+    width: var(--rail-w);
+    flex-direction: column; justify-content: center; gap: 6px;
+    border-top: none; border-inline-end: .5px solid var(--line);
+    padding: max(12px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
+    padding-inline-start: max(8px, env(safe-area-inset-right, 0px));
+  }
+  .tabs .tab { flex: 0 0 auto; padding: 10px 4px; font-size: 12px; border-radius: 14px; }
+  .tabs .tab.active { background: var(--brand-soft); }
+
+  .container { max-width: 1180px; padding-top: 20px; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+  /* الوحدات بعمودين */
+  .units-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+
+  /* اللوحة: القسط القادم والرسوم في صف واحد */
+  .dash-charts { grid-template-columns: 1fr 1fr; }
+  .dash-charts .chart-svg { max-height: 300px; margin-inline: auto; }
+
+  .modal { max-width: 560px; }
+  #toast { bottom: 28px; }
+  .notif-panel { top: 72px; }
+}
+
+/* --- مفتوح بالكامل وعرض كبير --- */
+@media (min-width: 960px) {
+  .summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .units-list { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+}
+
+/* --- مفصل عمودي (الجهاز مفتوح كالكتاب): عمودان يفصلهما المفصل --- */
+@media (horizontal-viewport-segments: 2) {
+  :root {
+    --seg-hinge: calc(env(viewport-segment-left 1 0, 0px) - env(viewport-segment-right 0 0, 0px));
+    --seg-w: env(viewport-segment-width 1 0, 50vw);
+  }
+  .container { max-width: none; }
+  .summary, .dash-charts, .units-list {
+    grid-template-columns: 1fr 1fr;
+    column-gap: calc(var(--seg-hinge) + 24px);
+  }
+  /* النوافذ تظهر في نصف واحد (نصف البداية = اليمين) ولا تعبر المفصل */
+  .modal-overlay { justify-items: start; }
+  .modal { max-width: calc(var(--seg-w) - 32px); }
+  .notif-panel { width: min(360px, calc(var(--seg-w) - 24px)); }
+}
+
+/* --- مفصل أفقي (وضع الطاولة/اللابتوب): المحتوى أعلى والنوافذ لا تعبر المفصل --- */
+@media (vertical-viewport-segments: 2) {
+  .modal-overlay { align-items: start; }
+  .modal { max-height: calc(env(viewport-segment-height 0 0, 50vh) - 32px); }
+}
