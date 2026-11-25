@@ -1,5 +1,5 @@
 /* Service Worker لتطبيق «أقساط» — تمكين العمل دون إنترنت (App Shell) */
-const CACHE = 'aksat-shell-v8';
+const CACHE = 'aksat-shell-v9';
 const CORE = [
   './',
   './index.html',

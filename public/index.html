@@ -34,6 +34,35 @@
         d.classList.toggle('rail', w >= 700 || (w >= 560 && h <= 520) || sr || sl);
       }
       upd();
+      /* شاشة فحص: اضغط شعار التطبيق 5 مرات متتالية لعرض المقاسات كما يراها الجهاز */
+      var taps = 0, tapT = 0;
+      document.addEventListener('click', function (e) {
+        if (!e.target.closest || !e.target.closest('.brand-logo')) return;
+        var now = Date.now(); taps = (now - tapT < 800) ? taps + 1 : 1; tapT = now;
+        if (taps < 5) return; taps = 0;
+        var q = document.createElement('div');
+        q.style.cssText = 'position:fixed;visibility:hidden;top:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+        document.body.appendChild(q);
+        var c = getComputedStyle(q), vv = window.visualViewport;
+        var info = [
+          'innerWidth × innerHeight: ' + innerWidth + ' × ' + innerHeight,
+          'clientWidth: ' + document.documentElement.clientWidth,
+          'visualViewport: ' + (vv ? Math.round(vv.width) + ' × ' + Math.round(vv.height) : '-'),
+          'screen: ' + screen.width + ' × ' + screen.height + ' (avail ' + screen.availWidth + ' × ' + screen.availHeight + ')',
+          'devicePixelRatio: ' + devicePixelRatio,
+          'safe-area top/right/bottom/left: ' + [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].join(' / '),
+          'orientation: ' + (screen.orientation ? screen.orientation.type : (window.orientation + '')),
+          'standalone: ' + (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches),
+          'classes: ' + (d.className || '-'),
+          'UA: ' + navigator.userAgent
+        ].join('\n');
+        q.remove();
+        var box = document.createElement('div');
+        box.style.cssText = 'position:fixed;inset:20px;z-index:99999;background:#111;color:#0f0;font:13px/1.5 monospace;padding:16px;border-radius:12px;white-space:pre-wrap;direction:ltr;text-align:left;overflow:auto';
+        box.textContent = info + '\n\n(tap to close)';
+        box.onclick = function () { box.remove(); };
+        document.body.appendChild(box);
+      }, true);
       addEventListener('resize', upd);
       addEventListener('orientationchange', function () { setTimeout(upd, 300); });
     })();
