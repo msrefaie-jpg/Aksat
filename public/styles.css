@@ -781,7 +781,7 @@ body.readonly .inst-row[data-act="settle-toggle"] { pointer-events: none; opacit
 .chart-scroll { overflow: hidden; max-width: 100%; }
 .chart-svg { display: block; max-width: 100%; height: auto; }
 .chart-bars { width: 100%; }
-.chart-svg text { fill: var(--ink-soft); font-size: 11px; font-family: inherit; }
+.chart-svg text { fill: var(--ink-soft); font-size: 11px; font-family: inherit; direction: ltr; }
 .chart-svg .grid { stroke: var(--line); stroke-width: 1; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12.5px; color: var(--ink-soft); }
 .legend .lk { display: inline-flex; align-items: center; gap: 6px; }

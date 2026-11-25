@@ -957,9 +957,9 @@ function monthlyBarChart(months) {
     buckets[idx].sum += Number(i.amount || 0);
   });
 
-  const W = N <= 6 ? 360 : 640, H = 240, padB = 46, padT = 20, padX = 12;
+  const W = N <= 6 ? 360 : 640, H = 240, padB = 46, padT = 20, padX = 12, padR = 40; // padR: مساحة أرقام المحور
   const max = Math.max(1, ...buckets.map(b => b.sum));
-  const bw = (W - padX * 2) / N;
+  const bw = (W - padX - padR) / N;
   const chartH = H - padB - padT;
 
   const H2 = H - padB + 10; // نقتصر ارتفاع SVG على منطقة الأعمدة (الأسماء أصبحت HTML)
@@ -967,8 +967,8 @@ function monthlyBarChart(months) {
   // خطوط شبكية أفقية (الأرقام لاتينية فتبقى داخل SVG)
   for (let g = 0; g <= 4; g++) {
     const y = padT + chartH * (g / 4);
-    grid += `<line class="grid" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"/>`;
-    grid += `<text x="${W - padX}" y="${y - 3}" text-anchor="end">${fmtCompact(max * (1 - g / 4))}</text>`;
+    grid += `<line class="grid" x1="${padX}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
+    grid += `<text x="${W - 2}" y="${y + 4}" text-anchor="end">${fmtCompact(max * (1 - g / 4))}</text>`;
   }
   buckets.forEach((b) => {
     const h = b.sum > 0 ? Math.max(2, (b.sum / max) * chartH) : 0;
@@ -984,8 +984,8 @@ function monthlyBarChart(months) {
   ).join('');
   const barsLabel = `رسم بياني لأعمدة الأقساط المستحقة خلال ${N} أشهر قادمة`;
   return `<div class="bar-chart">
-    <svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H2}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${barsLabel}">${grid}${bars}</svg>
-    <div class="bar-labels" style="grid-template-columns:repeat(${N},1fr);padding-inline:${(padX / W * 100).toFixed(2)}%">${labelCells}</div>
+    <svg class="chart-svg chart-bars" viewBox="0 0 ${W} ${H2}" preserveAspectRatio="xMidYMid meet" direction="ltr" role="img" aria-label="${barsLabel}">${grid}${bars}</svg>
+    <div class="bar-labels" style="grid-template-columns:repeat(${N},1fr);padding-left:${(padX / W * 100).toFixed(2)}%;padding-right:${(padR / W * 100).toFixed(2)}%">${labelCells}</div>
   </div>`;
 }
 
