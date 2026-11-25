@@ -1011,3 +1011,14 @@ html.side-l body::after {
   content: ''; position: fixed; top: 0; bottom: 0; left: 0; z-index: 1000; pointer-events: none;
   width: env(safe-area-inset-left, 0px); background: var(--status-bg);
 }
+
+/* عمود الساعة الذي يرسمه النظام خارج التطبيق (أفقي) يأخذ لون theme-color؛
+   نجعل الشريط الجانبي بنفس اللون تماماً فيبدوان شريطاً واحداً متصلاً */
+:root { --rail-bg: #f9f9fb; }
+body.dark { --rail-bg: #1c1c1e; }
+html.rail:not(.side-r) .tabs {
+  background: var(--rail-bg);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* منع تكبير الصفحة بالنقر المزدوج */
+html { touch-action: manipulation; }

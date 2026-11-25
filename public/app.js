@@ -1231,7 +1231,7 @@ function applyDark(on) {
   if (b) b.textContent = on ? '☀️' : '🌙';
   localStorage.setItem('aksat.dark', on ? '1' : '0');
   // اجعل لون شريط المتصفّح يتبع سِمة التطبيق (لا سِمة النظام)
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#000000' : '#f2f2f7');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#1c1c1e' : '#f9f9fb'); // = لون الشريط الجانبي (--rail-bg)
 }
 function toggleDark() { applyDark(!document.body.classList.contains('dark')); }
 function initDark() {
