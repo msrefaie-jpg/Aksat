@@ -1022,3 +1022,14 @@ html.rail:not(.side-r) .tabs {
 }
 /* منع تكبير الصفحة بالنقر المزدوج */
 html { touch-action: manipulation; }
+
+/* شاشات الدخول والترحيب: تحترم حواف الشاشة (الساعة/النتوء) وتسمح بالتمرير مع لوحة المفاتيح */
+.login-overlay, .onboard-overlay {
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  justify-content: safe center;
+  padding-top: max(40px, calc(env(safe-area-inset-top, 0px) + 16px));
+  padding-bottom: max(40px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  padding-left: max(28px, calc(env(safe-area-inset-left, 0px) + 12px));
+  padding-right: max(28px, calc(env(safe-area-inset-right, 0px) + 12px));
+}
+.onboard-overlay { align-items: safe center; }
