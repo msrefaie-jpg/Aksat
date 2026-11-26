@@ -1036,3 +1036,13 @@ html { touch-action: manipulation; }
 /* مسافة بين الرأس وشريط الساعة العلوي (كان العنوان يلامسه) */
 .app-header { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
 @media (max-height: 760px) { .app-header { padding-top: calc(env(safe-area-inset-top, 0px) + 6px); } }
+
+/* عمود الساعة: الأيقونات مثبّتة في أسفل العمود، فيبقى أعلاه حرّاً للساعة
+   وللأنشطة المباشرة (نتائج المباريات، المؤقّت…) التي تدفع الساعة للأسفل */
+html.rail.side-r .tabs {
+  justify-content: flex-end; gap: 4px;
+  padding-top: 12px;
+  padding-bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+}
+html.rail.side-r .tabs .tab { padding: 8px 2px; }
+html.rail.side-r .tabs .tab svg { width: 24px; height: 24px; }
