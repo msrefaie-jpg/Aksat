@@ -65,6 +65,13 @@
       }, true);
       addEventListener('resize', upd);
       addEventListener('orientationchange', function () { setTimeout(upd, 300); });
+      /* التطبيق الأصلي يُبلغ بحواف الشاشة بعد التحميل دون حدث resize:
+         نراقب حجم عنصر القياس نفسه (حشوته = حواف الشاشة) فنعيد الحساب حين تتغيّر */
+      if (window.ResizeObserver) {
+        try { new ResizeObserver(upd).observe(p, { box: 'border-box' }); } catch (e) { new ResizeObserver(upd).observe(p); }
+      }
+      addEventListener('load', upd);
+      [300, 1000, 2500].forEach(function (t) { setTimeout(upd, t); });
     })();
   </script>
   <div id="bootSplash" aria-hidden="true">
