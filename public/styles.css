@@ -1033,3 +1033,6 @@ html { touch-action: manipulation; }
   padding-right: max(28px, calc(env(safe-area-inset-right, 0px) + 12px));
 }
 .onboard-overlay { align-items: safe center; }
+/* مسافة بين الرأس وشريط الساعة العلوي (كان العنوان يلامسه) */
+.app-header { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+@media (max-height: 760px) { .app-header { padding-top: calc(env(safe-area-inset-top, 0px) + 6px); } }
