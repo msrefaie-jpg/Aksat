@@ -1,0 +1,17 @@
+{
+  "appId": "com.msrefaie.aksat",
+  "appName": "أقساط",
+  "webDir": "../public",
+  "server": {
+    "url": "https://aksat.YOUR-SUBDOMAIN.workers.dev",
+    "allowNavigation": ["*.workers.dev"]
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#f9f9fb",
+    "scheme": "Aksat"
+  },
+  "plugins": {
+    "StatusBar": { "overlaysWebView": true }
+  }
+}

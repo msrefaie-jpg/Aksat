@@ -1233,6 +1233,17 @@ function applyDark(on) {
   // اجعل لون شريط المتصفّح يتبع سِمة التطبيق (لا سِمة النظام)
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', on ? '#1c1c1e' : '#f9f9fb'); // = لون الشريط الجانبي (--rail-bg)
 }
+/* داخل التطبيق الأصلي (Capacitor): نص شريط الحالة أبيض ليظهر فوق الشريط الملوّن */
+function nativeStatusBar() {
+  try {
+    const C = window.Capacitor;
+    if (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.StatusBar) {
+      document.documentElement.classList.add('native');
+      C.Plugins.StatusBar.setStyle({ style: 'DARK' }).catch(() => {});
+    }
+  } catch { /* ليس تطبيقاً أصلياً */ }
+}
+nativeStatusBar();
 function toggleDark() { applyDark(!document.body.classList.contains('dark')); }
 function initDark() {
   const saved = localStorage.getItem('aksat.dark');

@@ -1,0 +1,18 @@
+{
+  "name": "aksat-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "تغليف تطبيق أقساط كتطبيق iOS أصلي عبر Capacitor (يفتح الموقع المنشور)",
+  "scripts": {
+    "sync": "cap sync ios",
+    "open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.3",
+    "@capacitor/ios": "8.6.3",
+    "@capacitor/status-bar": "8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.3"
+  }
+}
