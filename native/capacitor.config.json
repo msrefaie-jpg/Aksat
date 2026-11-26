@@ -3,8 +3,10 @@
   "appName": "أقساط",
   "webDir": "../public",
   "server": {
-    "url": "https://aksat.YOUR-SUBDOMAIN.workers.dev",
-    "allowNavigation": ["*.workers.dev"]
+    "url": "https://aksat.msrefaie.workers.dev/index.html",
+    "allowNavigation": [
+      "aksat.msrefaie.workers.dev"
+    ]
   },
   "ios": {
     "contentInset": "never",
@@ -12,6 +14,8 @@
     "scheme": "Aksat"
   },
   "plugins": {
-    "StatusBar": { "overlaysWebView": true }
+    "StatusBar": {
+      "overlaysWebView": true
+    }
   }
 }
