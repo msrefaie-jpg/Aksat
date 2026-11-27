@@ -6,6 +6,7 @@
 |---|---|
 | `server.test.mjs` | الخادم على PostgreSQL في الذاكرة (`@electric-sql/pglite`) ورموز Firebase موقّعة محلياً: DEC-000، DEC-002 (خادم)، DEC-003، DEC-007 |
 | `client.test.js` | الواجهة في Chromium (Playwright) مع خادم API وهمي: DEC-002، DEC-004، DEC-005، DEC-006 |
+| `export.test.js` | تصدير النسخة الاحتياطية وCSV: تنزيل المتصفح، ومشاركة المتصفح، والمشاركة الأصلية في تطبيق iOS (إضافات Capacitor محاكاة) |
 | `fake-neon.mjs` | بديل `@neondatabase/serverless` يوجّه الاستعلامات إلى PGlite |
 
 النتيجة عند الإضافة (2026-11-27): الخادم 16/16، الواجهة 14/14. على نسخة `main` السابقة: الخادم فشل في اختبارات DEC-000 وDEC-002، والواجهة 3/14.

@@ -2326,12 +2326,34 @@ function bindEvents() {
 }
 
 /* ---------- تصدير / استيراد ---------- */
-function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+/* حفظ ملف للمستخدم: نافذة المشاركة الأصلية (Capacitor) ← مشاركة المتصفح ← تنزيل عادي.
+   التنزيل عبر <a download> لا يعمل داخل عارض الويب في تطبيق iOS الأصلي. */
+async function saveFile(filename, text, mime) {
+  const C = window.Capacitor;
+  try {
+    if (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Filesystem && C.Plugins.Share) {
+      const w = await C.Plugins.Filesystem.writeFile({ path: filename, data: text, directory: 'CACHE', encoding: 'utf8' });
+      await C.Plugins.Share.share({ title: filename, url: w.uri, dialogTitle: filename });
+      return true;
+    }
+  } catch (e) { if (e && /cancel/i.test(String(e.message || e))) return false; /* وإلا نجرّب الطريقة التالية */ }
+  try {
+    const file = new File([text], filename, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      return true;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return false; }
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
   const a = document.createElement('a');
-  a.href = url; a.download = `aksat-backup-${todayISO()}.json`; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
+}
+
+async function exportData() {
+  const ok = await saveFile(`aksat-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json');
+  if (ok) toast('تم تجهيز النسخة الاحتياطية');
 }
 /* ---------- تصدير Excel/CSV ---------- */
 function csvEscape(v) { v = v == null ? '' : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
@@ -2353,12 +2375,8 @@ function exportCSV() {
     });
   });
   const csv = '﻿' + rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `aksat-installments-${todayISO()}.csv`; a.click();
-  URL.revokeObjectURL(url);
-  toast('تم تصدير ملف Excel/CSV');
+  saveFile(`aksat-installments-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8')
+    .then(ok => { if (ok) toast('تم تصدير ملف Excel/CSV'); });
 }
 
 /* ---------- رابط تقرير للقراءة فقط ---------- */
