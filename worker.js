@@ -1,6 +1,6 @@
 // نقطة دخول Cloudflare Worker لتطبيق «أقساط»
 // يخدم الملفات الثابتة من مجلد public (عبر ربط ASSETS) ويعالج مسارات /api.
-import { handleState, handleRate, handleInspect, handlePortfolios, handleShares, handleReport, handlePush, runDailyReminders } from './lib/api.js';
+import { handleState, handleRate, handlePortfolios, handleShares, handleReport, handlePush, runDailyReminders } from './lib/api.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -12,7 +12,6 @@ export default {
     if (p === '/api/report') return handleReport(request, env);
     if (p.startsWith('/api/push/')) return handlePush(request, env);
     if (p === '/api/rate') return handleRate(request, env);
-    if (p === '/api/inspect') return handleInspect(request, env);
     // أي مسار آخر → الملفات الثابتة
     return env.ASSETS.fetch(request);
   },

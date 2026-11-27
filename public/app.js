@@ -261,8 +261,11 @@ function scheduleCloudPush() {
   syncTimer = setTimeout(cloudPush, 600);
 }
 
-async function cloudPush() {
+async function cloudPush(allowEmpty) {
   if (!currentUser || !cloudAvailable || !canEdit()) return;
+  // DEC-002: لا رفع قبل تحميل ناجح من السحابة في هذه الجلسة (يمنع الكتابة فوقها بنسخة فارغة أو قديمة)
+  // DEC-004: ولا رفع أثناء انتظار قرار المستخدم في حوار التعارض
+  if (!hydrated || conflictPending) { pendingSync = true; markDirty(); return; }
   if (!navigator.onLine) { pendingSync = true; setSync('off', 'دون اتصال — سيُزامَن عند عودة الإنترنت'); return; }
   try {
     const h = await authHeaders();
@@ -270,8 +273,12 @@ async function cloudPush() {
     const res = await fetch(`${API}/state${portfolioQuery()}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...h },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify(allowEmpty === true ? { state, allowEmpty: true } : { state }),
     });
+    if (res.status === 409) {
+      const b = await res.json().catch(() => ({}));
+      if (b.code === 'EMPTY_OVERWRITE') { await handleEmptyOverwrite(); return; }
+    }
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
     const data = await res.json().catch(() => ({}));
     pendingSync = false;
@@ -283,6 +290,22 @@ async function cloudPush() {
     if (navigator.onLine) setSync('warn', 'غير متزامن — سيُعاد المحاولة');
     else setSync('off', 'دون اتصال — سيُزامَن عند عودة الإنترنت');
   }
+}
+
+/* الخادم رفض تفريغ محفظة فيها وحدات (DEC-002): نسأل المستخدم بدل الكتابة فوقها */
+async function handleEmptyOverwrite() {
+  if (confirm('سيؤدي الحفظ إلى حذف كل الوحدات من السحابة نهائياً. هل تريد ذلك فعلاً؟\n\nاختر «إلغاء» لاستعادة بياناتك من السحابة.')) {
+    await cloudPush(true);
+    return;
+  }
+  try {
+    const remote = await cloudPull();
+    if (remote && remote.state && Array.isArray(remote.state.units)) {
+      adoptRemote(remote.state, (remote.updatedAt && String(remote.updatedAt)) || '');
+      pendingSync = false;
+      applyRoleUI(); renderAll(); updateRateInfoUI();
+    }
+  } catch { setSync('err', 'تعذّرت استعادة نسخة السحابة — حاول لاحقاً'); }
 }
 
 async function cloudPull() {
@@ -313,6 +336,7 @@ async function syncOnLoad() {
   setSync('sync', 'جارٍ المزامنة…');
   try {
     const remote = await cloudPull();
+    hydrated = true; // تحميل ناجح: صار الرفع آمناً (DEC-002)
     const remoteState = remote && remote.state;
     const remoteTs = (remote && remote.updatedAt && String(remote.updatedAt)) || (remoteState && remoteState.updatedAt) || '';
     const base = getBase();
@@ -349,6 +373,15 @@ function adoptRemote(remoteState, remoteTs) {
 
 /* ---------- حلّ تعارض المزامنة ---------- */
 let conflictPending = null;
+let hydrated = false;   // DEC-002: هل نجح التحميل من السحابة للمحفظة الحالية في هذه الجلسة؟
+let resyncBusy = false;
+/* إن لم ينجح التحميل الأول: نعيد المزامنة الكاملة (سحب أولاً) بدل الرفع مباشرة */
+async function resyncIfNeeded() {
+  if (resyncBusy || !currentUser || !cloudAvailable || !navigator.onLine) return;
+  resyncBusy = true;
+  try { await syncOnLoad(); applyRoleUI(); renderAll(); updateRateInfoUI(); }
+  finally { resyncBusy = false; }
+}
 function showConflict(remoteState, remoteTs) {
   conflictPending = { remoteState, remoteTs };
   const info = $('#conflictInfo');
@@ -378,7 +411,7 @@ async function resolveConflict(keepMine) {
 function fmtDateTime(iso) {
   if (!iso) return '—';
   try { return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)); }
-  catch { return String(iso); }
+  catch { return escapeHtml(String(iso)); }
 }
 
 function setSync(kind, text) {
@@ -389,12 +422,17 @@ function setSync(kind, text) {
 /* حالة الاتصال + إعادة المحاولة عند عودة الإنترنت أو التركيز */
 function updateOnlineUI() {
   if (!navigator.onLine) { setSync('off', 'دون اتصال — محلي فقط'); return; }
+  if (!hydrated) { resyncIfNeeded(); return; }
   if (pendingSync || isDirty()) cloudPush();
   else setSync('ok', 'محفوظ سحابياً');
 }
 window.addEventListener('online', async () => { if (!cloudAvailable) await detectCloud(); updateOnlineUI(); });
 window.addEventListener('offline', () => setSync('off', 'دون اتصال — محلي فقط'));
-window.addEventListener('focus', () => { if ((pendingSync || isDirty()) && navigator.onLine) cloudPush(); });
+window.addEventListener('focus', () => {
+  if (!navigator.onLine) return;
+  if (!hydrated) { resyncIfNeeded(); return; }
+  if (pendingSync || isDirty()) cloudPush();
+});
 
 /* ==========================================================================
    الحسابات
@@ -524,7 +562,7 @@ function renderDashboard() {
     const nextUnpaid = (u.installments || []).filter(i => !i.paid).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
     html += `
       <div class="unit-card">
-        <div class="unit-title">${unitType(u).icon} ${escapeHtml(u.name)}</div>
+        <div class="unit-title">${escapeHtml(unitType(u).icon)} ${escapeHtml(u.name)}</div>
         ${u.project ? `<div class="unit-project">${escapeHtml(u.project)}</div>` : ''}
         <div class="progress"><span style="width:${pct}%"></span></div>
         <div class="progress-meta"><span>مدفوع ${pct}%</span><span>متبقٍّ ${fmtEGP(remaining)}</span></div>
@@ -553,15 +591,15 @@ function unitCardHtml(u) {
     ? insts.map(i => installmentRowHtml(u, i)).join('')
     : '<div style="font-size:13px;color:var(--ink-soft);text-align:center;padding:8px">لا توجد أقساط مسجّلة</div>';
   return `
-  <div class="unit-card" data-unit="${u.id}">
+  <div class="unit-card" data-unit="${escapeHtml(u.id)}">
     <div class="unit-top">
       <div>
-        <div class="unit-title">${unitType(u).icon} ${escapeHtml(u.name)}</div>
+        <div class="unit-title">${escapeHtml(unitType(u).icon)} ${escapeHtml(u.name)}</div>
         <div class="unit-project">${unitType(u).label}${u.project ? ' · ' + escapeHtml(u.project) : ''}</div>
       </div>
       <div class="unit-actions">
-        <button class="icon-btn" data-act="edit-unit" data-id="${u.id}" title="تعديل">✎</button>
-        <button class="icon-btn" data-act="del-unit" data-id="${u.id}" title="حذف">🗑</button>
+        <button class="icon-btn" data-act="edit-unit" data-id="${escapeHtml(u.id)}" title="تعديل">✎</button>
+        <button class="icon-btn" data-act="del-unit" data-id="${escapeHtml(u.id)}" title="حذف">🗑</button>
       </div>
     </div>
     <div class="unit-figures">
@@ -571,13 +609,13 @@ function unitCardHtml(u) {
     </div>
     <div class="progress"><span style="width:${pct}%"></span></div>
     <div class="progress-meta"><span>نسبة السداد ${pct}%</span><span>${insts.filter(i=>i.paid).length}/${insts.length} أقساط</span></div>
-    <button class="inst-toggle" data-act="toggle" data-id="${u.id}">
+    <button class="inst-toggle" data-act="toggle" data-id="${escapeHtml(u.id)}">
       ${expanded ? '▲ إخفاء الأقساط' : `▼ عرض الأقساط (${insts.length})`}
     </button>
     ${expanded ? `
       <div class="inst-list">
         ${instHtml}
-        <button class="add-inst-btn" data-act="add-inst" data-id="${u.id}">+ إضافة قسط / جدول أقساط</button>
+        <button class="add-inst-btn" data-act="add-inst" data-id="${escapeHtml(u.id)}">+ إضافة قسط / جدول أقساط</button>
       </div>` : ''}
   </div>`;
 }
@@ -592,7 +630,7 @@ function installmentRowHtml(u, i) {
   else if (isDueSoon) badge = `<span class="badge due">خلال ${d} يوم</span>`;
   return `
     <div class="inst-row ${i.paid ? 'paid' : isOverdue ? 'overdue' : ''}">
-      <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${u.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
+      <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${escapeHtml(u.id)}" data-id="${escapeHtml(i.id)}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
         <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${isOverdue ? 'overdue-txt' : ''}">🗓️ <bdi>${fmtDate(i.dueDate)}</bdi>${i.label ? ` · ${escapeHtml(i.label)}` : ''}</div>
@@ -600,9 +638,9 @@ function installmentRowHtml(u, i) {
       </div>
       <div class="inst-side">
         ${badge}
-        <button class="icon-btn" data-act="history" data-uid="${u.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
-        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${u.id}" data-id="${i.id}" title="تأجيل">⏳</button>` : ''}
-        <button class="icon-btn" data-act="del-inst" data-uid="${u.id}" data-id="${i.id}" title="حذف">✕</button>
+        <button class="icon-btn" data-act="history" data-uid="${escapeHtml(u.id)}" data-id="${escapeHtml(i.id)}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
+        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${escapeHtml(u.id)}" data-id="${escapeHtml(i.id)}" title="تأجيل">⏳</button>` : ''}
+        <button class="icon-btn" data-act="del-inst" data-uid="${escapeHtml(u.id)}" data-id="${escapeHtml(i.id)}" title="حذف">✕</button>
       </div>
     </div>`;
 }
@@ -615,9 +653,9 @@ function allTags() {
 }
 function populateUpcomingFilters() {
   const uSel = $('#fltUnit');
-  if (uSel) { const cur = uSel.value; uSel.innerHTML = '<option value="">كل الوحدات</option>' + state.units.map(u => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join(''); uSel.value = cur; }
+  if (uSel) { const cur = uSel.value; uSel.innerHTML = '<option value="">كل الوحدات</option>' + state.units.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join(''); uSel.value = cur; }
   const tSel = $('#fltType');
-  if (tSel) { const used = new Set(state.units.map(u => unitType(u).key)); const cur = tSel.value; tSel.innerHTML = '<option value="">كل التصنيفات</option>' + allTypes().filter(t => used.has(t.key)).map(t => `<option value="${t.key}">${t.icon} ${escapeHtml(t.label)}</option>`).join(''); tSel.value = cur; }
+  if (tSel) { const used = new Set(state.units.map(u => unitType(u).key)); const cur = tSel.value; tSel.innerHTML = '<option value="">كل التصنيفات</option>' + allTypes().filter(t => used.has(t.key)).map(t => `<option value="${escapeHtml(t.key)}">${escapeHtml(t.icon)} ${escapeHtml(t.label)}</option>`).join(''); tSel.value = cur; }
   const gSel = $('#fltTag');
   if (gSel) { const tags = allTags(); const cur = gSel.value; gSel.innerHTML = '<option value="">كل الوسوم</option>' + tags.map(t => `<option value="${escapeHtml(t)}">#${escapeHtml(t)}</option>`).join(''); gSel.value = tags.includes(cur) ? cur : ''; gSel.classList.toggle('hidden', !tags.length); }
 }
@@ -653,7 +691,7 @@ function upcomingRowHtml(i) {
   const statusBadge = i.paid ? '<span class="badge ok">مدفوع</span>' : (over ? '<span class="badge over">متأخّر</span>' : `<span class="badge due">${d} يوم</span>`);
   return `
     <div class="inst-row ${i.paid ? 'paid' : over ? 'overdue' : ''}">
-      <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${i.unit.id}" data-id="${i.id}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
+      <button class="inst-check ${i.paid ? 'on' : ''}" data-act="toggle-paid" data-uid="${escapeHtml(i.unit.id)}" data-id="${escapeHtml(i.id)}" title="${i.paid ? 'إلغاء السداد' : 'تحديد كمدفوع'}">${i.paid ? '✓' : ''}</button>
       <div class="inst-main">
         <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)}</span></div>
         <div class="inst-date ${over ? 'overdue-txt' : ''}"><bdi>${escapeHtml(i.unit.name)}</bdi> · <bdi>${fmtDate(i.dueDate)}</bdi>${postponed ? ' <span class="badge postponed">⏳ مؤجّل</span>' : ''}</div>
@@ -662,8 +700,8 @@ function upcomingRowHtml(i) {
       </div>
       <div class="inst-side">
         ${statusBadge}
-        <button class="icon-btn" data-act="history" data-uid="${i.unit.id}" data-id="${i.id}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
-        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${i.unit.id}" data-id="${i.id}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>` : ''}
+        <button class="icon-btn" data-act="history" data-uid="${escapeHtml(i.unit.id)}" data-id="${escapeHtml(i.id)}" title="السجلّ" aria-label="سجلّ القسط">📜</button>
+        ${!i.paid ? `<button class="icon-btn" data-act="postpone" data-uid="${escapeHtml(i.unit.id)}" data-id="${escapeHtml(i.id)}" title="تأجيل" aria-label="تأجيل القسط">⏳</button>` : ''}
       </div>
     </div>`;
 }
@@ -842,15 +880,15 @@ function settleResultHtml() {
 function accountsHtml() {
   const dis = canEdit() ? '' : 'disabled';
   const rows = state.accounts.map(a => `
-    <div class="acc-row" data-acc="${a.id}">
-      <input class="acc-name" data-acc="${a.id}" type="text" value="${escapeHtml(a.name)}" placeholder="اسم الحساب" ${dis} />
-      <input class="acc-amt" data-acc="${a.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${a.amount || ''}" placeholder="0" ${dis} />
-      <select class="acc-cur select" data-acc="${a.id}" ${dis}>
+    <div class="acc-row" data-acc="${escapeHtml(a.id)}">
+      <input class="acc-name" data-acc="${escapeHtml(a.id)}" type="text" value="${escapeHtml(a.name)}" placeholder="اسم الحساب" ${dis} />
+      <input class="acc-amt" data-acc="${escapeHtml(a.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${a.amount || ''}" placeholder="0" ${dis} />
+      <select class="acc-cur select" data-acc="${escapeHtml(a.id)}" ${dis}>
         <option value="EGP" ${a.currency === 'EGP' ? 'selected' : ''}>جنيه</option>
         <option value="SAR" ${a.currency === 'SAR' ? 'selected' : ''}>ريال</option>
         <option value="USD" ${a.currency === 'USD' ? 'selected' : ''}>دولار</option>
       </select>
-      ${canEdit() ? `<button class="icon-btn" data-act="acc-del" data-id="${a.id}" title="حذف">✕</button>` : ''}
+      ${canEdit() ? `<button class="icon-btn" data-act="acc-del" data-id="${escapeHtml(a.id)}" title="حذف">✕</button>` : ''}
     </div>`).join('');
   return rows + (canEdit() ? `<button class="add-inst-btn" data-act="acc-add" style="margin-top:6px">+ إضافة حساب</button>` : '');
 }
@@ -869,7 +907,7 @@ function renderSettle() {
     const on = settleSelected.has(i.id);
     const over = daysBetween(i.dueDate) < 0;
     return `
-      <div class="inst-row ${on ? 'sel' : ''}" data-act="settle-toggle" data-id="${i.id}">
+      <div class="inst-row ${on ? 'sel' : ''}" data-act="settle-toggle" data-id="${escapeHtml(i.id)}">
         <span class="inst-check ${on ? 'on' : ''}">${on ? '✓' : ''}</span>
         <div class="inst-main">
           <div class="inst-amt"><span class="amt-egp">${fmtEGP(i.amount)}</span><span class="amt-sar">${fmtSAR(i.amount)} · ${fmtUSD(i.amount)}</span></div>
@@ -1203,7 +1241,7 @@ async function fetchAutoRate(manual) {
     }
     if (usdEgp > 0 || source) {
       state.rateInfo = { source, fetchedAt: nowISO() };
-      persist();
+      saveLocal(); // DEC-004: تحديث السعر وحده ليس تعديلاً يُرفع للسحابة (يُرفع مع أول تعديل حقيقي)
       renderAll();
       updateFxLine();
       if (manual) setSync('ok', `تم تحديث الأسعار`);
@@ -1511,7 +1549,7 @@ function histLabel(e) {
     case 'postpone': return { ic: '⏳', txt: `تأجيل: ${fmtDate(e.from)} ← ${fmtDate(e.to)}` };
     case 'paydate': return { ic: '📅', txt: `تعديل تاريخ الدفع إلى ${fmtDate(e.to)}` };
     case 'note': return { ic: '📝', txt: `ملاحظة: ${escapeHtml(e.note || '')}` };
-    default: return { ic: '•', txt: e.k };
+    default: return { ic: '•', txt: escapeHtml(e.k) };
   }
 }
 function renderHistTimeline(i) {
@@ -1567,7 +1605,7 @@ let editUnitType = 'apartment';
 function renderTypePicker() {
   const el = $('#unitTypePicker');
   el.innerHTML = allTypes().map(t =>
-    `<button type="button" class="type-chip ${t.key === editUnitType ? 'on' : ''}" data-type="${t.key}">${t.icon} ${escapeHtml(t.label)}</button>`
+    `<button type="button" class="type-chip ${t.key === editUnitType ? 'on' : ''}" data-type="${escapeHtml(t.key)}">${escapeHtml(t.icon)} ${escapeHtml(t.label)}</button>`
   ).join('') + `<button type="button" class="type-chip add" data-type="__add">＋ تصنيف</button>`;
 }
 function openUnitModal(unit) {
@@ -1688,6 +1726,9 @@ function confirmPay() {
 function deleteInstallment(unitId, instId) {
   const u = findUnit(unitId); if (!u) return;
   const i = u.installments.find(x => x.id === instId);
+  if (!i) return;
+  // DEC-005: تأكيد قبل الحذف
+  if (!confirm(`حذف القسط ${fmtEGP(i.amount)} المستحق ${fmtDate(i.dueDate)} من «${u.name}»؟ لا يمكن التراجع.`)) return;
   u.installments = u.installments.filter(x => x.id !== instId);
   logActivity(`حذف قسط${i ? ' ' + fmtEGP(i.amount) : ''} من «${u.name}»`);
   persist(); renderAll();
@@ -2011,6 +2052,7 @@ async function loadPortfolios() {
 /* تحميل بيانات المحفظة النشطة وعرضها */
 async function loadActivePortfolio(initPrefs) {
   clearTimeout(syncTimer);
+  hydrated = false;
   resetState();
   loadLocal();
   $('#rateInput').value = state.rate;
@@ -2357,7 +2399,7 @@ function renderReportLinks() {
   const el = $('#rsList');
   if (!list.length) { el.innerHTML = '<div class="rsub">لا روابط نشطة.</div>'; return; }
   el.innerHTML = list.slice().reverse().map(r =>
-    `<div class="pf-item"><div class="pf-meta"><div class="pf-sub" style="word-break:break-all">${reportLinkUrl(r.id)}</div><div class="pf-sub">أُنشئ ${fmtDate(r.at)}</div></div><button class="btn ghost small" data-act="report-revoke" data-id="${r.id}">إلغاء</button></div>`
+    `<div class="pf-item"><div class="pf-meta"><div class="pf-sub" style="word-break:break-all">${reportLinkUrl(r.id)}</div><div class="pf-sub">أُنشئ ${fmtDate(r.at)}</div></div><button class="btn ghost small" data-act="report-revoke" data-id="${escapeHtml(r.id)}">إلغاء</button></div>`
   ).join('');
 }
 async function createReportLink() {

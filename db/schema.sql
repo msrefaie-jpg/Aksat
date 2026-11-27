@@ -50,3 +50,14 @@ CREATE TABLE IF NOT EXISTS push_state (
   notified   JSONB NOT NULL DEFAULT '{}'::jsonb,  -- { inst_id: 'overdue'|'soon' }
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- DEC-003: النسخة السابقة من كل محفظة قبل استبدالها (آخر 50 نسخة لكل محفظة)
+-- للاسترجاع: اختر النسخة المطلوبة ثم انسخ state إلى app_state (راجع board/RESTORE.md)
+CREATE TABLE IF NOT EXISTS app_state_history (
+  id          BIGSERIAL PRIMARY KEY,
+  user_key    TEXT NOT NULL,
+  state       JSONB NOT NULL,
+  updated_at  TIMESTAMPTZ,              -- وقت النسخة الأصلي
+  archived_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS app_state_history_key ON app_state_history (user_key, archived_at DESC);
