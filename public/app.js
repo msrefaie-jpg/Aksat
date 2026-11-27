@@ -250,6 +250,7 @@ function persist() {
   touch();
   saveLocal();
   scheduleCloudPush();
+  scheduleReminderRefresh(); // DEC-019: إعادة جدولة التذكيرات بعد كل تعديل
 }
 function scheduleCloudPush() {
   if (!currentUser || !cloudAvailable || !canEdit()) return;
@@ -369,6 +370,7 @@ function adoptRemote(remoteState, remoteTs) {
   clearDirty();
   setBase(remoteTs);
   setSync('ok', 'مُزامَن سحابياً');
+  scheduleReminderRefresh();
 }
 
 /* ---------- حلّ تعارض المزامنة ---------- */
@@ -1159,7 +1161,7 @@ async function enablePush() {
     return false;
   }
 }
-async function disablePush() {
+async function disablePush(silent) {
   try {
     const sub = await pushSubscription();
     if (sub) {
@@ -1167,7 +1169,7 @@ async function disablePush() {
       await fetch(`${API}/push/unsubscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ endpoint: sub.endpoint }) });
       await sub.unsubscribe();
     }
-    toast('أُوقفت الإشعارات');
+    if (!silent) toast('أُوقفت الإشعارات');
   } catch { /* تجاهل */ }
 }
 async function sendTestPush() {
@@ -1187,12 +1189,127 @@ async function onPushToggle(e) {
 }
 async function updatePushUI() {
   const row = $('#pushRow'); if (!row) return;
-  if (!pushSupported()) { row.classList.add('hidden'); return; }
+  // DEC-021: قناة واحدة لكل جهاز — في التطبيق الأصلي تُستخدم التذكيرات المحلية فقط
+  if (!pushSupported() || isNativeApp()) { row.classList.add('hidden'); const tb = $('#pushTestBtn'); if (tb) tb.classList.add('hidden'); return; }
   row.classList.remove('hidden');
   const on = await isPushOn();
   const t = $('#pushToggle'); if (t) t.checked = on;
   const tb = $('#pushTestBtn'); if (tb) tb.classList.toggle('hidden', !on);
 }
+
+/* ==========================================================================
+   تذكيرات محلية في تطبيق iOS الأصلي (DEC-018 / DEC-019 / DEC-020)
+   ========================================================================== */
+const LN_ON = 'aksat_ln_on', LN_AMOUNT = 'aksat_ln_amount', LN_LAST = 'aksat_ln_last', LN_COUNT = 'aksat_ln_count';
+const LN_TEST_ID = 99999;
+function isNativeApp() { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch { return false; } }
+function lnPlugin() {
+  try {
+    const C = window.Capacitor;
+    if (C && C.isPluginAvailable && C.isPluginAvailable('LocalNotifications') && C.Plugins && C.Plugins.LocalNotifications) return C.Plugins.LocalNotifications;
+  } catch { /* بناء قديم بلا الإضافة */ }
+  return null;
+}
+function lnPref(k) { try { return localStorage.getItem(k) === '1'; } catch { return false; } }
+function lnSetPref(k, on) { try { on ? localStorage.setItem(k, '1') : localStorage.removeItem(k); } catch { /* تجاهل */ } }
+
+async function lnCancelAll(keepTest) {
+  const LN = lnPlugin(); if (!LN) return;
+  try {
+    const p = await LN.getPending();
+    const list = (p && p.notifications || []).filter(n => !(keepTest && Number(n.id) === LN_TEST_ID));
+    if (list.length) await LN.cancel({ notifications: list.map(n => ({ id: n.id })) });
+  } catch { /* تجاهل */ }
+}
+
+let lnTimer = null;
+function scheduleReminderRefresh() { clearTimeout(lnTimer); lnTimer = setTimeout(rescheduleLocalReminders, 800); }
+
+async function rescheduleLocalReminders() {
+  const LN = lnPlugin();
+  if (!LN || !lnPref(LN_ON) || !currentUser) return;
+  // محفظة المستخدم نفسه فقط؛ عند عرض محفظة مشتركة تبقى جدولة محفظته كما هي
+  if (!activePortfolio || !activePortfolio.self) return;
+  try {
+    const perm = await LN.checkPermissions();
+    if (!perm || perm.display !== 'granted') return;
+    const list = AksatReminders.computeReminders(state.units, new Date(), {
+      showAmount: lnPref(LN_AMOUNT),
+      fmtAmount: n => NF.format(Math.round(n)) + ' ج.م',
+      maxTotal: 60,
+    });
+    await lnCancelAll(true);
+    if (list.length) await LN.schedule({ notifications: list.map(x => ({ id: x.id, title: x.title, body: x.body, schedule: { at: x.at, allowWhileIdle: true } })) });
+    try { localStorage.setItem(LN_LAST, nowISO()); localStorage.setItem(LN_COUNT, String(list.length)); } catch { /* تجاهل */ }
+    updateLocalRemindersUI();
+  } catch (e) { /* لا نُسقط التطبيق بسبب التذكيرات */ }
+}
+
+async function onLocalRemindersToggle(e) {
+  const LN = lnPlugin(); const t = e.target;
+  if (!LN) { t.checked = false; return; }
+  if (t.checked) {
+    // الإذن يُطلب هنا فقط، عند تفعيل المستخدم للمفتاح (لا عند الإقلاع)
+    let perm = null;
+    try { perm = await LN.requestPermissions(); } catch { perm = null; }
+    if (!perm || perm.display !== 'granted') {
+      t.checked = false; lnSetPref(LN_ON, false);
+      alert('لم يُمنح إذن الإشعارات. فعّله من إعدادات الآيفون ← أقساط ← الإشعارات.');
+    } else {
+      lnSetPref(LN_ON, true);
+      await rescheduleLocalReminders();
+      toast('فُعّلت تذكيرات الأقساط');
+    }
+  } else {
+    lnSetPref(LN_ON, false);
+    await lnCancelAll(false);
+    try { localStorage.removeItem(LN_COUNT); } catch { /* تجاهل */ }
+    toast('أُوقفت تذكيرات الأقساط');
+  }
+  updateLocalRemindersUI();
+}
+async function onLocalRemindersAmountToggle(e) {
+  lnSetPref(LN_AMOUNT, e.target.checked);
+  await rescheduleLocalReminders();
+}
+async function sendLocalTestReminder() {
+  const LN = lnPlugin(); if (!LN) return;
+  try {
+    await LN.schedule({ notifications: [{ id: LN_TEST_ID, title: 'أقساط — تجربة', body: 'التذكيرات تعمل ✅ يمكنك إغلاق التطبيق الآن.', schedule: { at: new Date(Date.now() + 120000), allowWhileIdle: true } }] });
+    toast('سيصلك إشعار تجريبي بعد دقيقتين — أغلق التطبيق للتجربة');
+  } catch { toast('تعذّر جدولة الإشعار التجريبي'); }
+}
+function updateLocalRemindersUI() {
+  const row = $('#lnRow'); if (!row) return;
+  const amountRow = $('#lnAmountRow'), info = $('#lnInfo'), testBtn = $('#lnTestBtn'), t = $('#lnToggle');
+  const native = isNativeApp(), LN = lnPlugin();
+  row.classList.toggle('hidden', !native);
+  const browserRow = $('#notifToggle') && $('#notifToggle').closest('label');
+  if (browserRow) browserRow.classList.toggle('hidden', native); // تنبيهات المتصفح لا تعمل داخل التطبيق الأصلي
+  if (!native) { [amountRow, info, testBtn].forEach(el => el && el.classList.add('hidden')); return; }
+  if (!LN) {
+    // بناء قديم لا يحتوي الإضافة: لا استثناء، رسالة بديلة
+    if (t) { t.checked = false; t.disabled = true; }
+    if (info) { info.textContent = 'حدّث التطبيق من Xcode لتفعيل التذكيرات على هذا الجهاز.'; info.classList.remove('hidden'); }
+    [amountRow, testBtn].forEach(el => el && el.classList.add('hidden'));
+    return;
+  }
+  const on = lnPref(LN_ON);
+  if (t) { t.disabled = false; t.checked = on; }
+  const a = $('#lnAmountToggle'); if (a) a.checked = lnPref(LN_AMOUNT);
+  if (amountRow) amountRow.classList.toggle('hidden', !on);
+  if (testBtn) testBtn.classList.toggle('hidden', !on);
+  if (info) {
+    let last = '', cnt = '';
+    try { last = localStorage.getItem(LN_LAST) || ''; cnt = localStorage.getItem(LN_COUNT) || ''; } catch { /* تجاهل */ }
+    const shared = activePortfolio && !activePortfolio.self;
+    info.textContent = on
+      ? `آخر جدولة: ${last ? fmtDateTime(last) : '—'} · المجدول: ${cnt || 0} تذكير${shared ? ' · (التذكيرات لمحفظتك أنت فقط)' : ''}`
+      : '';
+    info.classList.toggle('hidden', !on);
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleReminderRefresh(); });
 
 function maybeShowBrowserNotif() {
   if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
@@ -1754,6 +1871,7 @@ function openAccountModal() {
   $('#darkToggle').checked = document.body.classList.contains('dark');
   updateLockUI();
   updatePushUI();
+  updateLocalRemindersUI();
   renderPortfolioList();
   loadMembers();
   $('#accountModal').classList.remove('hidden');
@@ -2001,6 +2119,11 @@ async function doReset() {
 }
 
 async function doLogout() {
+  // DEC-019/021: لا تذكيرات ولا إشعارات لهذا الحساب على الجهاز بعد الخروج
+  clearTimeout(lnTimer);
+  await lnCancelAll(false);
+  try { localStorage.removeItem(LN_COUNT); localStorage.removeItem(LN_LAST); } catch { /* تجاهل */ }
+  if (pushSupported()) await Promise.race([disablePush(true), new Promise(r => setTimeout(r, 3000))]); // لا يعلق الخروج
   try { await fbAuth.signOut(); } catch (e) { /* تجاهل */ }
   closeAccountModal();
   setAuthMode('login');
@@ -2071,6 +2194,8 @@ async function loadActivePortfolio(initPrefs) {
   updateRateInfoUI();
   if (state.autoRate) fetchAutoRate(false);
   maybeShowBrowserNotif();
+  scheduleReminderRefresh(); // DEC-019: بعد التحميل والمزامنة
+  updateLocalRemindersUI();
   if (initPrefs) maybeShowOnboarding(); // فقط عند أول دخول للجلسة، وليس عند تبديل المحافظ
 }
 
@@ -2210,6 +2335,9 @@ function bindEvents() {
     if (notifEnabled) maybeShowBrowserNotif();
   });
   const pt = $('#pushToggle'); if (pt) pt.addEventListener('change', onPushToggle);
+  const lt = $('#lnToggle'); if (lt) lt.addEventListener('change', onLocalRemindersToggle);
+  const la = $('#lnAmountToggle'); if (la) la.addEventListener('change', onLocalRemindersAmountToggle);
+  const lb = $('#lnTestBtn'); if (lb) lb.addEventListener('click', sendLocalTestReminder);
   const ptb = $('#pushTestBtn'); if (ptb) ptb.addEventListener('click', sendTestPush);
 
   $('#exportBtn2').addEventListener('click', exportData);

@@ -463,6 +463,17 @@
           <input type="checkbox" id="pushToggle" />
         </label>
         <button type="button" class="btn ghost small hidden" id="pushTestBtn" style="margin-top:2px">إرسال إشعار تجريبي</button>
+        <!-- تذكيرات محلية في تطبيق iOS الأصلي (DEC-019) -->
+        <label class="switch-row hidden" id="lnRow">
+          <span>تذكيرات الأقساط على هذا الجهاز — تصلك والتطبيق مغلق</span>
+          <input type="checkbox" id="lnToggle" />
+        </label>
+        <label class="switch-row hidden" id="lnAmountRow">
+          <span>إظهار المبلغ في التذكير (يظهر على شاشة القفل)</span>
+          <input type="checkbox" id="lnAmountToggle" />
+        </label>
+        <div class="hint hidden" id="lnInfo"></div>
+        <button type="button" class="btn ghost small hidden" id="lnTestBtn" style="margin-top:2px">إشعار تجريبي بعد دقيقتين</button>
         <label class="switch-row">
           <span>الوضع الداكن</span>
           <input type="checkbox" id="darkToggle" />
@@ -585,6 +596,7 @@
   <!-- Firebase (للمصادقة فقط — الإعدادات عامة) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="app.js?v=31"></script>
+  <script src="reminders.js?v=1"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>
