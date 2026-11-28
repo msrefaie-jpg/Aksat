@@ -595,7 +595,8 @@ body.booted #bootSplash { display: none; }
 .lock-dots { display: flex; gap: 14px; justify-content: center; margin: 26px 0; }
 .lock-dots .pdot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); transition: .15s; }
 .lock-dots .pdot.on { background: #fff; border-color: #fff; }
-.lock-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 260px; margin: 0 auto; }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 260px; margin: 0 auto; direction: ltr; } /* ترتيب لوحة الأرقام المعتاد: 1 2 3 من اليسار، والحذف أسفل اليمين */
+.lock-dots { direction: ltr; } /* النقاط تمتلئ من اليسار كما في iPhone */
 .lock-pad .pad {
   height: 62px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
   background: rgba(255,255,255,.08); color: #fff; font-size: 24px; font-weight: 600; cursor: pointer;
